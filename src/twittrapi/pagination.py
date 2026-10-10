@@ -10,6 +10,12 @@ Sometimes it is nested under ``itemContent``, or delivered through a ``TimelineR
 instruction on later pages. :func:`extract_bottom_cursor` walks the whole response and looks for
 any of those shapes, so it keeps working when X moves things around, but it can still miss a
 cursor if X changes the format in a bigger way. When no cursor is found, iteration stops.
+
+Endpoints that are not raw timelines are covered too: ``/search`` wraps the entries as
+``{"entries": [{"type": "TimelineAddEntries", "entries": [...]}]}``, and slice-based endpoints
+(communities search and members, jobs search) put the cursor in ``slice_info.next_cursor``.
+Empty timelines (``/user/{id}/likes`` returns ``"timeline": {}``, ``/tweet/{id}/favorites``
+only a ``TimelineTerminateTimeline`` instruction) have no cursor, so iteration stops there.
 """
 
 from __future__ import annotations
@@ -111,7 +117,25 @@ def count_content_entries(data: Any) -> Tuple[int, int]:
     return lists, content
 
 
+def _count_slice_items(data: Any) -> Tuple[int, int]:
+    """Counts slice-based results (communities search/members, jobs search): objects with a
+    ``slice_info`` next to an ``items_results`` list. Returns ``(slices_found, items)``."""
+    slices = 0
+    items = 0
+    for node in _walk(data):
+        if isinstance(node, dict) and "slice_info" in node:
+            results = node.get("items_results")
+            if isinstance(results, list):
+                slices += 1
+                items += sum(1 for item in results if isinstance(item, dict) and item)
+    return slices, items
+
+
 def page_is_empty(data: Any) -> bool:
-    """True when the response has timeline entry lists but none of them hold real results."""
+    """True when the response has timeline entry lists (or result slices) but none of them
+    hold real results. X can keep returning a cursor on such pages."""
     lists, content = count_content_entries(data)
-    return lists > 0 and content == 0
+    if lists > 0 and content == 0:
+        return True
+    slices, items = _count_slice_items(data)
+    return slices > 0 and items == 0 and lists == 0

@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `count` must be between 1 and 100 (`MAX_COUNT`), matching the API and the other TwittrAPI
+  SDKs. Larger values now raise `ValueError` before any request is sent.
+- Usernames: only one leading `@` is stripped.
+
+### Fixed
+
+- `paginate()` also stops on slice-based pages (communities search, jobs search) that return a
+  `next_cursor` but no items.
+
+### Added
+
+- Tests against trimmed real API responses (`tests/fixtures/live/`): followers (Bottom cursor
+  before Top), tweet detail, search wrapper, slice `next_cursor`, empty likes and favorites
+  timelines, articles with an empty `tweet_results`.
+
 ## [0.1.0] - 2026-10-10
 
 ### Added

@@ -160,7 +160,8 @@ client.trends.locations()     # every location with trends, with its WOEID
 
 ## Pagination
 
-Paginated methods accept `count` and `cursor`. X puts the next-page cursor inside the response
+Paginated methods accept `count` (1 to 100; leave it out for the server default of 20) and
+`cursor`. `count` is only a hint to X: a page can hold more or fewer results. X puts the next-page cursor inside the response
 (a timeline entry with `cursorType: "Bottom"`). `client.paginate()` finds it and keeps calling
 the method for you, yielding each raw page:
 

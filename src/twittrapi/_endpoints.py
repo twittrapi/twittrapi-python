@@ -21,6 +21,8 @@ _NUMERIC = re.compile(r"^\d{1,30}$")
 _WOEID = re.compile(r"^\d{1,12}$")
 
 MAX_USERS_PER_LOOKUP = 100
+# X treats count as a hint (pages can be larger or smaller); TwittrAPI accepts 1..100.
+MAX_COUNT = 100
 SEARCH_CATEGORIES = ("Top", "Latest", "People", "Photos", "Videos")
 RANKING_MODES = ("Relevance", "Recency", "Likes")
 
@@ -48,7 +50,9 @@ def _numeric_id(value: ID, name: str) -> str:
 def _username(value: str) -> str:
     if not isinstance(value, str):
         raise TypeError(f"username must be a string, got {type(value).__name__}")
-    text = value.strip().lstrip("@").strip()
+    text = value.strip()
+    if text.startswith("@"):
+        text = text[1:].strip()
     if not text:
         raise ValueError("username must not be empty")
     return text
@@ -63,8 +67,13 @@ def _non_empty(value: str, name: str) -> str:
 def _paging(count: Optional[int], cursor: Optional[str]) -> Dict[str, QueryValue]:
     params: Dict[str, QueryValue] = {}
     if count is not None:
-        if isinstance(count, bool) or not isinstance(count, int) or count < 1:
-            raise ValueError(f"count must be a positive integer, got {count!r}")
+        if (
+            isinstance(count, bool)
+            or not isinstance(count, int)
+            or count < 1
+            or count > MAX_COUNT
+        ):
+            raise ValueError(f"count must be an integer from 1 to {MAX_COUNT}, got {count!r}")
         params["count"] = count
     if cursor:
         params["cursor"] = cursor

@@ -22,6 +22,7 @@ from ._exceptions import (
     TwittrAPIError,
     ValidationError,
 )
+from ._endpoints import MAX_COUNT
 from ._version import __version__
 from .pagination import extract_bottom_cursor
 
@@ -42,6 +43,7 @@ __all__ = [
     "extract_bottom_cursor",
     "DEFAULT_BASE_URL",
     "DEFAULT_MAX_PAGES",
+    "MAX_COUNT",
     "RAPIDAPI_BASE_URL",
     "RAPIDAPI_HOST",
 ]
