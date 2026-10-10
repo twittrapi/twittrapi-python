@@ -1,7 +1,11 @@
-# twittrapi
+# twittrapi – Twitter/X API client for Python
+
+[![PyPI](https://img.shields.io/pypi/v/twittrapi.svg)](https://pypi.org/project/twittrapi/) [![Python](https://img.shields.io/pypi/pyversions/twittrapi.svg)](https://pypi.org/project/twittrapi/) [![Tests](https://github.com/twittrapi/twittrapi-python/actions/workflows/test.yml/badge.svg)](https://github.com/twittrapi/twittrapi-python/actions)
 
 Official Python client for [TwittrAPI](https://twittrapi.com), a read API for X (Twitter) data:
 profiles, tweets, followers, search, lists, communities and trends.
+
+> **Get an API key:** [twittrapi.com/start](https://twittrapi.com/start?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · [Pricing](https://twittrapi.com/pricing?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · [Docs](https://twittrapi.com/docs?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · also available on [RapidAPI](https://rapidapi.com/viperscores-viperscores-default/api/twitter-aio)
 
 - Sync (`TwittrAPI`) and async (`AsyncTwittrAPI`) clients with the same methods
 - Works with a direct TwittrAPI key or a RapidAPI key
@@ -281,6 +285,10 @@ python -m venv .venv
 .venv/bin/pytest
 .venv/bin/mypy
 ```
+
+## Support
+
+Questions, bugs or a higher rate limit: email support@twittrapi.com or open an issue in this repository. Service status: [status.twittrapi.com](https://status.twittrapi.com). News and changes: the TwittrAPI Telegram channel (link on the website).
 
 ## License
 
