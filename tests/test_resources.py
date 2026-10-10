@@ -1,0 +1,162 @@
+"""Every resource method, sync and async, builds the expected path and query."""
+
+from __future__ import annotations
+
+import inspect
+from typing import Any, Callable, Dict
+
+import pytest
+
+from twittrapi import AsyncTwittrAPI, TwittrAPI
+
+from .conftest import MockAPI
+
+UID = "44196397"
+TID = "1585841080431321088"
+
+# (call, expected path, expected query params)
+CASES = [
+    # users
+    (lambda c: c.users.get_by_username("@elonmusk"), "/user/by/username/elonmusk", {}),
+    (lambda c: c.users.get_by_id(44196397), f"/user/{UID}", {}),
+    (lambda c: c.users.username_to_id(" jack "), "/username/to/id/jack", {}),
+    (lambda c: c.users.get_many([1, "2", 3]), "/user/users/by/ids", {"ids": "1,2,3"}),
+    (lambda c: c.users.tweets(UID), f"/user/{UID}/tweets", {}),
+    (
+        lambda c: c.users.tweets(username="@jack", count=50, cursor="abc"),
+        "/user/-1/tweets",
+        {"username": "jack", "count": "50", "cursor": "abc"},
+    ),
+    (lambda c: c.users.tweets_and_replies(UID, count=10), f"/user/{UID}/tweetsAndReplies", {"count": "10"}),
+    (lambda c: c.users.tweets_and_replies(username="jack"), "/user/-1/tweetsAndReplies", {"username": "jack"}),
+    (lambda c: c.users.media(UID, cursor="c1"), f"/user/{UID}/media", {"cursor": "c1"}),
+    (lambda c: c.users.media(username="jack"), "/user/-1/media", {"username": "jack"}),
+    (lambda c: c.users.followers(UID, count=100), f"/user/{UID}/followers", {"count": "100"}),
+    (lambda c: c.users.followers(username="jack"), "/user/-1/followers", {"username": "jack"}),
+    (lambda c: c.users.following(UID), f"/user/{UID}/followings", {}),
+    (lambda c: c.users.following(username="jack"), "/user/-1/followings", {"username": "jack"}),
+    (lambda c: c.users.verified_followers(UID), f"/user/{UID}/verifiedFollowers", {}),
+    (
+        lambda c: c.users.verified_followers(username="jack", count=20),
+        "/user/-1/verifiedFollowers",
+        {"username": "jack", "count": "20"},
+    ),
+    # user_id wins over username when both are given
+    (lambda c: c.users.tweets(UID, username="jack"), f"/user/{UID}/tweets", {}),
+    # tweets
+    (lambda c: c.tweets.get(TID), f"/tweet/{TID}", {}),
+    (
+        lambda c: c.tweets.get(int(TID), ranking_mode="Recency", cursor="x"),
+        f"/tweet/{TID}",
+        {"rankingMode": "Recency", "cursor": "x"},
+    ),
+    (lambda c: c.tweets.retweeters(TID, count=40), f"/tweet/{TID}/retweets", {"count": "40"}),
+    (lambda c: c.tweets.likers(TID, cursor="y"), f"/tweet/{TID}/favorites", {"cursor": "y"}),
+    (lambda c: c.tweets.quotes(TID), f"/tweet/{TID}/quotes", {}),
+    # search
+    (lambda c: c.search.tweets("python"), "/search", {"searchItem": "python"}),
+    (
+        lambda c: c.search.tweets('from:jack "hello world" lang:en', category="Latest", count=20, cursor="z"),
+        "/search",
+        {"searchItem": 'from:jack "hello world" lang:en', "category": "Latest", "count": "20", "cursor": "z"},
+    ),
+    # lists
+    (lambda c: c.lists.details(1234), "/lists/details", {"listId": "1234"}),
+    (lambda c: c.lists.tweets("1234", count=5), "/lists/tweets", {"listId": "1234", "count": "5"}),
+    (lambda c: c.lists.members("1234", cursor="m"), "/lists/members", {"listId": "1234", "cursor": "m"}),
+    # communities
+    (lambda c: c.communities.get(1500), "/communities/1500", {}),
+    (lambda c: c.communities.tweets("1500", count=10), "/communities/1500/tweets", {"count": "10"}),
+    (lambda c: c.communities.search("open source"), "/communities/search/open%20source", {}),
+    (lambda c: c.communities.search("a/b", cursor="n"), "/communities/search/a%2Fb", {"cursor": "n"}),
+    # trends
+    (lambda c: c.trends.get(), "/trends/1", {}),
+    (lambda c: c.trends.get(23424977), "/trends/23424977", {}),
+    (lambda c: c.trends.locations(), "/misc/locations", {}),
+]
+
+
+def _check(api: MockAPI, path: str, params: Dict[str, str]) -> None:
+    assert len(api.requests) == 1
+    req = api.last
+    assert req.url.raw_path.decode().split("?")[0] == path
+    assert dict(req.url.params) == params
+
+
+@pytest.mark.parametrize("call,path,params", CASES)
+def test_sync(api: MockAPI, call: Callable[[Any], Any], path: str, params: Dict[str, str]) -> None:
+    result = call(api.client())
+    assert result == {"ok": True}
+    _check(api, path, params)
+
+
+@pytest.mark.parametrize("call,path,params", CASES)
+async def test_async(api: MockAPI, call: Callable[[Any], Any], path: str, params: Dict[str, str]) -> None:
+    result = await call(api.async_client())
+    assert result == {"ok": True}
+    _check(api, path, params)
+
+
+def _public_methods(obj: Any) -> Dict[str, Any]:
+    return {
+        name: getattr(obj, name)
+        for name in dir(obj)
+        if not name.startswith("_") and callable(getattr(obj, name))
+    }
+
+
+@pytest.mark.parametrize("resource", ["users", "tweets", "search", "lists", "communities", "trends"])
+def test_async_parity(resource: str) -> None:
+    sync_res = getattr(TwittrAPI(api_key="k"), resource)
+    async_res = getattr(AsyncTwittrAPI(api_key="k"), resource)
+    sync_methods = _public_methods(sync_res)
+    async_methods = _public_methods(async_res)
+    assert sync_methods.keys() == async_methods.keys()
+    for name, method in async_methods.items():
+        assert inspect.iscoroutinefunction(method), name
+        assert inspect.signature(method) == inspect.signature(sync_methods[name]), name
+
+
+def test_expected_method_names() -> None:
+    c = TwittrAPI(api_key="k")
+    assert set(_public_methods(c.users)) == {
+        "get_by_username", "get_by_id", "username_to_id", "get_many", "tweets",
+        "tweets_and_replies", "media", "followers", "following", "verified_followers",
+    }
+    assert set(_public_methods(c.tweets)) == {"get", "retweeters", "likers", "quotes"}
+    assert set(_public_methods(c.search)) == {"tweets"}
+    assert set(_public_methods(c.lists)) == {"details", "tweets", "members"}
+    assert set(_public_methods(c.communities)) == {"get", "tweets", "search"}
+    assert set(_public_methods(c.trends)) == {"get", "locations"}
+
+
+@pytest.mark.parametrize(
+    "call,exc",
+    [
+        (lambda c: c.users.tweets(), ValueError),
+        (lambda c: c.users.followers(username="  @ "), ValueError),
+        (lambda c: c.users.get_by_id("jack"), ValueError),
+        (lambda c: c.users.get_by_username(""), ValueError),
+        (lambda c: c.users.get_many([]), ValueError),
+        (lambda c: c.users.get_many([str(i) for i in range(101)]), ValueError),
+        (lambda c: c.users.get_many("123"), TypeError),
+        (lambda c: c.tweets.get("12a"), ValueError),
+        (lambda c: c.tweets.get(True), TypeError),
+        (lambda c: c.tweets.get(TID, ranking_mode="Newest"), ValueError),
+        (lambda c: c.search.tweets(""), ValueError),
+        (lambda c: c.search.tweets("x", category="Recent"), ValueError),
+        (lambda c: c.search.tweets("x", count=0), ValueError),
+        (lambda c: c.lists.details("abc"), ValueError),
+        (lambda c: c.communities.search("  "), ValueError),
+        (lambda c: c.trends.get("us"), ValueError),
+    ],
+)
+def test_client_side_validation(api: MockAPI, call: Callable[[Any], Any], exc: type) -> None:
+    with pytest.raises(exc):
+        call(api.client())
+    assert api.requests == []
+
+
+def test_get_many_accepts_exactly_100(api: MockAPI) -> None:
+    api.client().users.get_many(range(1, 101))
+    assert len(api.last.url.params["ids"].split(",")) == 100

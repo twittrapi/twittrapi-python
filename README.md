@@ -1,0 +1,290 @@
+# twittrapi
+
+Official Python client for [TwittrAPI](https://twittrapi.com), a read API for X (Twitter) data:
+profiles, tweets, followers, search, lists, communities and trends.
+
+- Sync (`TwittrAPI`) and async (`AsyncTwittrAPI`) clients with the same methods
+- Works with a direct TwittrAPI key or a RapidAPI key
+- Retries 429, 5xx and network errors with backoff
+- Typed exceptions for every error class
+- A cursor-following paginator
+- Python 3.9+, one dependency (`httpx`), fully type-annotated
+
+Responses are X's raw GraphQL JSON, returned as plain `dict`/`list` values. The client does not
+reshape them.
+
+Not affiliated with X Corp.
+
+## Install
+
+```bash
+pip install twittrapi
+```
+
+## Quickstart
+
+### Direct API key
+
+Get a key at [twittrapi.com](https://twittrapi.com).
+
+```python
+from twittrapi import TwittrAPI
+
+client = TwittrAPI(api_key="YOUR_KEY")
+user = client.users.get_by_username("jack")
+print(user)
+```
+
+Requests go to `https://api.twittrapi.com` with an `X-API-KEY` header.
+
+### RapidAPI key
+
+```python
+from twittrapi import TwittrAPI
+
+client = TwittrAPI(rapidapi_key="YOUR_RAPIDAPI_KEY")
+user = client.users.get_by_username("jack")
+```
+
+Requests go to `https://twitter-aio.p.rapidapi.com` with `x-rapidapi-key` and `x-rapidapi-host`
+headers.
+
+### Environment variables
+
+With no key argument, the client reads `TWITTRAPI_API_KEY`, then `RAPIDAPI_KEY`:
+
+```bash
+export TWITTRAPI_API_KEY=YOUR_KEY
+```
+
+```python
+client = TwittrAPI()
+```
+
+`TWITTRAPI_BASE_URL` overrides the direct API base URL (useful for a proxy or staging).
+
+### Client options
+
+```python
+client = TwittrAPI(
+    api_key="YOUR_KEY",
+    base_url="https://api.twittrapi.com",  # default depends on the auth mode
+    timeout=60.0,                          # seconds, or an httpx.Timeout
+    max_retries=2,                         # retries for 429, 5xx and network errors
+)
+```
+
+You can also pass your own `httpx.Client` (or `httpx.AsyncClient`) as `http_client=` to set
+proxies, transports or connection limits. The client does not close an `http_client` you pass in.
+
+Close the client when done, or use it as a context manager:
+
+```python
+with TwittrAPI() as client:
+    ...
+```
+
+## Examples by resource
+
+IDs can be passed as `str` or `int`. Usernames can include a leading `@`.
+
+### Users
+
+```python
+client.users.get_by_username("jack")
+client.users.get_by_id("12")
+client.users.username_to_id("jack")             # smaller response when you only need the ID
+client.users.get_many(["12", "44196397"])       # up to 100 IDs per call
+
+# Timelines take user_id or username=
+client.users.tweets("12", count=20)
+client.users.tweets(username="jack")
+client.users.tweets_and_replies("12")
+client.users.media("12")
+client.users.followers("12", count=100)
+client.users.following(username="jack")
+client.users.verified_followers("12")
+```
+
+Passing `user_id` is a little faster than `username`, because the API does not have to look the
+handle up first.
+
+### Tweets
+
+```python
+client.tweets.get("1585841080431321088")                         # tweet plus reply thread
+client.tweets.get("1585841080431321088", ranking_mode="Recency")  # Relevance, Recency or Likes
+client.tweets.retweeters("1585841080431321088")
+client.tweets.likers("1585841080431321088")    # often empty: X hides likers for many tweets
+client.tweets.quotes("1585841080431321088")
+```
+
+### Search
+
+```python
+client.search.tweets("python")
+client.search.tweets('from:jack "hello" lang:en', category="Latest", count=20)
+```
+
+`query` supports X search operators (`from:`, `to:`, `lang:`, `since:`, `until:`, `min_faves:`,
+`filter:media`, `-filter:replies`, ...). `category` is one of `Top` (default), `Latest`,
+`People`, `Photos`, `Videos`.
+
+### Lists
+
+```python
+client.lists.details("1234567890")
+client.lists.tweets("1234567890")
+client.lists.members("1234567890")
+```
+
+### Communities
+
+```python
+client.communities.search("python")
+client.communities.get("1500000000000000000")
+client.communities.tweets("1500000000000000000")
+```
+
+### Trends
+
+```python
+client.trends.get(1)          # worldwide
+client.trends.get(23424977)   # United States
+client.trends.locations()     # every location with trends, with its WOEID
+```
+
+## Pagination
+
+Paginated methods accept `count` and `cursor`. X puts the next-page cursor inside the response
+(a timeline entry with `cursorType: "Bottom"`). `client.paginate()` finds it and keeps calling
+the method for you, yielding each raw page:
+
+```python
+for page in client.paginate(client.users.followers, username="jack", count=100, max_pages=5):
+    ...  # page is the raw JSON for one request
+```
+
+Paging stops when any of these happens:
+
+- `max_pages` pages were fetched (default 10, `None` for no limit)
+- no bottom cursor is found in the page
+- the cursor repeats
+- the page has no results, only cursor entries
+
+Each page is a separate billed request, so set `max_pages` to what you need.
+
+To start from a saved cursor, pass `cursor=...`. If you want to page by hand, use
+`extract_bottom_cursor`:
+
+```python
+from twittrapi import extract_bottom_cursor
+
+page = client.search.tweets("python", category="Latest")
+next_cursor = extract_bottom_cursor(page)
+if next_cursor:
+    page = client.search.tweets("python", category="Latest", cursor=next_cursor)
+```
+
+Cursor detection is best-effort. X does not document its response format, and the helper
+searches the whole response for the shapes X uses today (`cursorType: "Bottom"` objects and
+`cursor-bottom-*` entry IDs). If X changes the format, the paginator may stop early.
+
+## Error handling
+
+All errors raised by the client inherit from `TwittrAPIError`.
+
+| Exception | When |
+| --- | --- |
+| `ValidationError` | 400, 422: bad parameters |
+| `AuthenticationError` | 401, 403: missing or invalid key, or no access |
+| `InsufficientBalanceError` | 402: no balance left on the account |
+| `NotFoundError` | 404: user, tweet, list or community not found |
+| `RateLimitError` | 429: too many requests; has `retry_after` (seconds or `None`) |
+| `ServerError` | 5xx |
+| `APIStatusError` | any other 4xx; base class of all the above |
+| `APIConnectionError` | network failure, no response |
+| `APITimeoutError` | request timed out (subclass of `APIConnectionError`) |
+
+HTTP errors carry `status_code`, `message` (the API's `error` text), `body` (parsed JSON) and
+`response` (the `httpx.Response`).
+
+```python
+from twittrapi import (
+    TwittrAPI,
+    InsufficientBalanceError,
+    NotFoundError,
+    RateLimitError,
+    TwittrAPIError,
+)
+
+client = TwittrAPI()
+try:
+    user = client.users.get_by_username("someone")
+except NotFoundError:
+    print("No such user")
+except InsufficientBalanceError:
+    print("Top up at https://twittrapi.com")
+except RateLimitError as exc:
+    print(f"Rate limited, retry in {exc.retry_after}s")
+except TwittrAPIError as exc:
+    print(f"API error: {exc}")
+```
+
+Invalid arguments (a non-numeric ID, more than 100 IDs, an unknown `category`) raise
+`ValueError` or `TypeError` before any request is sent.
+
+### Retries
+
+429 responses, 5xx responses and network errors are retried up to `max_retries` times (default 2,
+so at most 3 attempts). The wait is 0.5 s, 1 s, 2 s, ... with some jitter, capped at 8 s. For 429
+the client waits for the `Retry-After` header if the API sends one (capped at 60 s). Other 4xx
+errors, including 402, are never retried. Set `max_retries=0` to turn retries off.
+
+## Async
+
+`AsyncTwittrAPI` has the same constructor and methods. Every API method is a coroutine, and
+`paginate` returns an async iterator.
+
+```python
+import asyncio
+from twittrapi import AsyncTwittrAPI
+
+
+async def main() -> None:
+    async with AsyncTwittrAPI() as client:
+        user, trends = await asyncio.gather(
+            client.users.get_by_username("jack"),
+            client.trends.get(1),
+        )
+        async for page in client.paginate(client.search.tweets, "python", max_pages=3):
+            ...
+
+
+asyncio.run(main())
+```
+
+## More examples
+
+The [`examples/`](examples) folder has short scripts:
+
+- `export_followers_csv.py`: export a user's followers to CSV
+- `keyword_monitor.py`: poll search and print new matching tweets
+- `user_timeline_json.py`: save a user's tweets to JSON
+- `trends_by_country.py`: trends for a country or city by name
+
+## Development
+
+```bash
+python -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/pytest
+.venv/bin/mypy
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+TwittrAPI is an independent service and is not affiliated with, endorsed by or sponsored by
+X Corp. "X" and "Twitter" are trademarks of X Corp.

@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "twittrapi"
+dynamic = ["version"]
+description = "Official Python client for TwittrAPI, a read API for X (Twitter) data."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+authors = [{ name = "TwittrAPI" }]
+keywords = ["twitter", "x", "api", "client", "twittrapi"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = ["httpx>=0.23.0,<1.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-asyncio>=0.21", "mypy>=1.5"]
+
+[project.urls]
+Homepage = "https://twittrapi.com"
+Documentation = "https://twittrapi.com"
+Source = "https://github.com/twittrapi/twittrapi-python"
+Issues = "https://github.com/twittrapi/twittrapi-python/issues"
+Changelog = "https://github.com/twittrapi/twittrapi-python/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/twittrapi/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/twittrapi"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/twittrapi", "tests", "examples", "README.md", "CHANGELOG.md", "LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+files = ["src/twittrapi"]
