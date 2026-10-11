@@ -5,13 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "twittrapi"
 dynamic = ["version"]
-description = "Official Python client for TwittrAPI, a read API for X (Twitter) data."
+description = "Python client for TwittrAPI: read public Twitter/X tweets, profiles, followers and search results. Pay as you go from $0.065 per 1,000 calls."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.9"
 authors = [{ name = "TwittrAPI" }]
-keywords = ["twitter", "x", "api", "client", "twittrapi"]
+keywords = ["twitter api", "x api", "twitter scraper", "tweets", "twitter search", "twitter followers", "social media data", "twittrapi", "sdk", "python"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
