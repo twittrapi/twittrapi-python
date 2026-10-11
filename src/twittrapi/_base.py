@@ -9,7 +9,7 @@ import os
 import random
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional, Union
+from typing import Any, Dict, Literal, Mapping, Optional, Union, cast
 
 import httpx
 
@@ -45,6 +45,20 @@ ENV_BASE_URL = "TWITTRAPI_BASE_URL"
 USER_AGENT = f"twittrapi-python/{__version__}"
 
 TimeoutTypes = Union[float, httpx.Timeout, None]
+
+ResponseFormat = Literal["raw", "simple"]
+"""``"raw"``: X's JSON exactly as X sends it (the default). ``"simple"``: the API's compact,
+camelCase format (``format=simple``), see https://twittrapi.com/docs/simple-format."""
+
+RESPONSE_FORMATS = ("raw", "simple")
+DEFAULT_RESPONSE_FORMAT: ResponseFormat = "raw"
+FORMAT_PARAM = "format"
+
+
+def check_response_format(value: Any, name: str = "response_format") -> ResponseFormat:
+    if value not in RESPONSE_FORMATS:
+        raise ValueError(f"{name} must be \"raw\" or \"simple\", got {value!r}")
+    return cast(ResponseFormat, value)
 
 
 @dataclass(frozen=True)
@@ -122,6 +136,16 @@ def build_url(config: ClientConfig, path: str) -> str:
 
 def clean_params(params: Mapping[str, Optional[QueryValue]]) -> Dict[str, QueryValue]:
     return {k: v for k, v in params.items() if v is not None and v != ""}
+
+
+def format_params(
+    params: Dict[str, QueryValue], response_format: ResponseFormat
+) -> Dict[str, QueryValue]:
+    """Adds ``format=simple`` for the simple format. Raw requests are sent exactly as before
+    (no ``format`` parameter), so their responses do not change."""
+    if response_format == "simple":
+        params = {**params, FORMAT_PARAM: "simple"}
+    return params
 
 
 def make_timeout(timeout: TimeoutTypes) -> httpx.Timeout:

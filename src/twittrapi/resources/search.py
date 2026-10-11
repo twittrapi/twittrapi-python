@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from .. import _endpoints as E
+from .._base import ResponseFormat
 from ._base import AsyncResource, SyncResource
 
 __all__ = ["Search", "AsyncSearch"]
@@ -18,6 +19,7 @@ class Search(SyncResource):
         category: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """Search tweets. ``query`` supports X search operators (``from:``, ``lang:``,
         ``since:``, ``min_faves:``, ``-filter:replies`` ...).
@@ -25,7 +27,7 @@ class Search(SyncResource):
         ``category`` is one of "Top" (default), "Latest", "People", "Photos", "Videos".
         "People" returns accounts instead of tweets. Paginated.
         """
-        return self._get(E.search_tweets(query, category, count, cursor))
+        return self._get(E.search_tweets(query, category, count, cursor), response_format)
 
 
 class AsyncSearch(AsyncResource):
@@ -38,6 +40,7 @@ class AsyncSearch(AsyncResource):
         category: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """Search tweets. ``query`` supports X search operators (``from:``, ``lang:``,
         ``since:``, ``min_faves:``, ``-filter:replies`` ...).
@@ -45,4 +48,4 @@ class AsyncSearch(AsyncResource):
         ``category`` is one of "Top" (default), "Latest", "People", "Photos", "Videos".
         "People" returns accounts instead of tweets. Paginated.
         """
-        return await self._get(E.search_tweets(query, category, count, cursor))
+        return await self._get(E.search_tweets(query, category, count, cursor), response_format)

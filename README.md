@@ -75,6 +75,7 @@ client = TwittrAPI(
     base_url="https://api.twittrapi.com",  # default depends on the auth mode
     timeout=60.0,                          # seconds, or an httpx.Timeout
     max_retries=2,                         # retries for 429, 5xx and network errors
+    response_format="raw",                 # or "simple", see "Simple format" below
 )
 ```
 
@@ -158,6 +159,38 @@ client.trends.get(23424977)   # United States
 client.trends.locations()     # every location with trends, with its WOEID
 ```
 
+## Simple format
+
+By default every method returns X's raw JSON. The API can also answer in a compact, flat,
+camelCase format with a fixed schema ([docs](https://twittrapi.com/docs/simple-format)). It is
+opt-in: set it for the whole client, or per call with `response_format=` on any method.
+
+```python
+client = TwittrAPI(response_format="simple")
+page = client.users.tweets(username="XDevelopers", count=20)
+# {"data": [{"id": ..., "text": ..., "author": {...}, "counts": {...}, ...}],
+#  "nextCursor": "...", "previousCursor": "...", "hasNextPage": true}
+
+raw = client.users.tweets(username="XDevelopers", response_format="raw")  # this call only
+```
+
+`twittrapi.models` has typed dataclasses for it (`Tweet`, `User`, `Page`, ...), with
+snake_case attributes:
+
+```python
+from twittrapi.models import User, tweets_page, users_page
+
+page = tweets_page(client.users.tweets(username="XDevelopers"))
+for tweet in page.data:
+    print(tweet.id, tweet.counts.likes, tweet.author.username if tweet.author else None)
+print(page.next_cursor, page.has_next_page)
+
+user = User.from_dict(client.users.get_by_username("XDevelopers")["data"])
+```
+
+Same price, parameters and errors as the raw format; only successful responses change.
+Account and status routes ignore the option and answer as usual.
+
 ## Pagination
 
 Paginated methods accept `count` (1 to 100; leave it out for the server default of 20) and
@@ -194,6 +227,17 @@ if next_cursor:
 Cursor detection is best-effort. X does not document its response format, and the helper
 searches the whole response for the shapes X uses today (`cursorType: "Bottom"` objects and
 `cursor-bottom-*` entry IDs). If X changes the format, the paginator may stop early.
+
+In the simple format none of this guessing is needed: every list response carries
+`nextCursor` and `hasNextPage`, and `paginate()` follows `nextCursor` until `hasNextPage` is
+false. That applies when the client was created with `response_format="simple"` or when you
+pass `response_format="simple"` to `paginate()`:
+
+```python
+for page in client.paginate(client.users.followers, username="jack", response_format="simple"):
+    for user in page["data"]:
+        print(user["username"])
+```
 
 ## Error handling
 

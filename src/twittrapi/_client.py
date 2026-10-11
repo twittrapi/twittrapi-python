@@ -19,10 +19,17 @@ from typing import (
 import httpx
 
 from . import _base
-from ._base import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, ClientConfig, TimeoutTypes
+from ._base import (
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_RESPONSE_FORMAT,
+    DEFAULT_TIMEOUT,
+    ClientConfig,
+    ResponseFormat,
+    TimeoutTypes,
+)
 from ._endpoints import QueryValue
 from ._exceptions import APIConnectionError, APITimeoutError, RateLimitError
-from .pagination import extract_bottom_cursor, page_is_empty
+from .pagination import extract_bottom_cursor, is_simple_page, page_is_empty, simple_next_cursor
 from .resources import (
     AsyncCommunities,
     AsyncLists,
@@ -56,9 +63,25 @@ def _check_max_pages(max_pages: Optional[int]) -> None:
         raise ValueError("max_pages must be a positive integer or None")
 
 
+def _next_page_cursor(page: Any, response_format: ResponseFormat) -> Optional[str]:
+    """The cursor to request next, or ``None`` to stop.
+
+    Simple-format pages say it themselves (``nextCursor`` / ``hasNextPage``). Raw pages, and
+    simple-format requests the API answered raw (routes without a simple format), fall back
+    to the best-effort search for X's bottom cursor.
+    """
+    if response_format == "simple" and is_simple_page(page):
+        return simple_next_cursor(page)
+    next_cursor = extract_bottom_cursor(page)
+    if not next_cursor or page_is_empty(page):
+        return None
+    return next_cursor
+
+
 class _ClientMixin:
     _config: ClientConfig
     max_retries: int
+    response_format: ResponseFormat
 
     @property
     def base_url(self) -> str:
@@ -69,17 +92,29 @@ class _ClientMixin:
         """``"direct"`` (X-API-KEY header) or ``"rapidapi"`` (x-rapidapi-key header)."""
         return self._config.mode
 
+    def _resolve_format(self, response_format: Optional[ResponseFormat]) -> ResponseFormat:
+        if response_format is None:
+            return self.response_format
+        return _base.check_response_format(response_format)
+
     def _request_args(
-        self, path: str, params: Optional[Mapping[str, Optional[QueryValue]]]
+        self,
+        path: str,
+        params: Optional[Mapping[str, Optional[QueryValue]]],
+        response_format: Optional[ResponseFormat] = None,
     ) -> Dict[str, Any]:
+        fmt = self._resolve_format(response_format)
         return {
             "url": _base.build_url(self._config, path),
-            "params": _base.clean_params(params or {}),
+            "params": _base.format_params(_base.clean_params(params or {}), fmt),
             "headers": _base.build_headers(self._config),
         }
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(auth_mode={self.auth_mode!r}, base_url={self.base_url!r})"
+        return (
+            f"{type(self).__name__}(auth_mode={self.auth_mode!r}, base_url={self.base_url!r}, "
+            f"response_format={self.response_format!r})"
+        )
 
 
 class TwittrAPI(_ClientMixin):
@@ -89,7 +124,11 @@ class TwittrAPI(_ClientMixin):
     RapidAPI. With neither, the ``TWITTRAPI_API_KEY`` and then ``RAPIDAPI_KEY`` environment
     variables are used.
 
-    Every method returns the parsed JSON from the API (X's raw GraphQL response).
+    Every method returns the parsed JSON from the API. By default that is X's raw GraphQL
+    response. With ``response_format="simple"`` (here for every call, or per call on any
+    method) the API answers in its compact simple format (``{"data": ..., "nextCursor": ...,
+    "hasNextPage": ...}`` with flat, camelCase tweets and users); parse it with
+    :mod:`twittrapi.models` if you want typed objects.
     Requests that fail with 429, 5xx or a network error are retried ``max_retries`` times
     with exponential backoff. Other errors raise immediately.
 
@@ -112,8 +151,10 @@ class TwittrAPI(_ClientMixin):
         timeout: TimeoutTypes = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
         http_client: Optional[httpx.Client] = None,
+        response_format: ResponseFormat = DEFAULT_RESPONSE_FORMAT,
     ) -> None:
         self._config = _base.resolve_config(api_key, rapidapi_key, base_url)
+        self.response_format = _base.check_response_format(response_format)
         self.max_retries = _check_max_retries(max_retries)
         self.timeout = _base.make_timeout(timeout)
         self._owns_http = http_client is None
@@ -128,10 +169,14 @@ class TwittrAPI(_ClientMixin):
         self.trends = Trends(self)
 
     def _get(
-        self, path: str, params: Optional[Mapping[str, Optional[QueryValue]]] = None
+        self,
+        path: str,
+        params: Optional[Mapping[str, Optional[QueryValue]]] = None,
+        *,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """Sends a GET request with retries and returns the parsed JSON body."""
-        args = self._request_args(path, params)
+        args = self._request_args(path, params, response_format)
         attempt = 0
         while True:
             try:
@@ -164,29 +209,31 @@ class TwittrAPI(_ClientMixin):
         max_pages: Optional[int] = DEFAULT_MAX_PAGES,
         **kwargs: Any,
     ) -> Iterator[Any]:
-        """Calls a paginated method repeatedly, following X's bottom cursor, and yields each
-        raw page.
+        """Calls a paginated method repeatedly and yields each page.
 
         ``method`` is any client method that takes ``cursor``, e.g. ``client.users.followers``.
         Other arguments are passed through. Pass ``cursor=`` to start from a saved cursor.
 
-        Stops when ``max_pages`` pages have been fetched (``None`` for no limit), when no
-        bottom cursor is found, when the cursor repeats, or when a page has no results.
-        Cursor detection is best-effort; see :mod:`twittrapi.pagination`. Each page is a
-        billed request.
+        In the simple format (the client's ``response_format``, or ``response_format=`` passed
+        here for this iteration) each page's ``nextCursor`` is followed until ``hasNextPage``
+        is false. In the raw format X's bottom cursor is followed; that detection is
+        best-effort, see :mod:`twittrapi.pagination`.
+
+        Stops when ``max_pages`` pages have been fetched (``None`` for no limit), when there
+        is no next cursor, when the cursor repeats, or when a page has no results. Each page
+        is a billed request.
         """
         _check_max_pages(max_pages)
         cursor: Optional[str] = kwargs.pop("cursor", None)
+        fmt = self._resolve_format(kwargs.get("response_format"))
         seen: Set[str] = set()
         pages = 0
         while max_pages is None or pages < max_pages:
             page = method(*args, cursor=cursor, **kwargs)
             pages += 1
             yield page
-            next_cursor = extract_bottom_cursor(page)
+            next_cursor = _next_page_cursor(page, fmt)
             if not next_cursor or next_cursor in seen or next_cursor == cursor:
-                return
-            if page_is_empty(page):
                 return
             seen.add(next_cursor)
             cursor = next_cursor
@@ -231,8 +278,10 @@ class AsyncTwittrAPI(_ClientMixin):
         timeout: TimeoutTypes = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
         http_client: Optional[httpx.AsyncClient] = None,
+        response_format: ResponseFormat = DEFAULT_RESPONSE_FORMAT,
     ) -> None:
         self._config = _base.resolve_config(api_key, rapidapi_key, base_url)
+        self.response_format = _base.check_response_format(response_format)
         self.max_retries = _check_max_retries(max_retries)
         self.timeout = _base.make_timeout(timeout)
         self._owns_http = http_client is None
@@ -247,9 +296,13 @@ class AsyncTwittrAPI(_ClientMixin):
         self.trends = AsyncTrends(self)
 
     async def _get(
-        self, path: str, params: Optional[Mapping[str, Optional[QueryValue]]] = None
+        self,
+        path: str,
+        params: Optional[Mapping[str, Optional[QueryValue]]] = None,
+        *,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
-        args = self._request_args(path, params)
+        args = self._request_args(path, params, response_format)
         attempt = 0
         while True:
             try:
@@ -285,16 +338,15 @@ class AsyncTwittrAPI(_ClientMixin):
         """Async version of :meth:`TwittrAPI.paginate`. Use with ``async for``."""
         _check_max_pages(max_pages)
         cursor: Optional[str] = kwargs.pop("cursor", None)
+        fmt = self._resolve_format(kwargs.get("response_format"))
         seen: Set[str] = set()
         pages = 0
         while max_pages is None or pages < max_pages:
             page = await method(*args, cursor=cursor, **kwargs)
             pages += 1
             yield page
-            next_cursor = extract_bottom_cursor(page)
+            next_cursor = _next_page_cursor(page, fmt)
             if not next_cursor or next_cursor in seen or next_cursor == cursor:
-                return
-            if page_is_empty(page):
                 return
             seen.add(next_cursor)
             cursor = next_cursor

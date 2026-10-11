@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Iterable, Optional
 
 from .. import _endpoints as E
+from .._base import ResponseFormat
 from .._endpoints import ID
 from ._base import AsyncResource, SyncResource
 
@@ -16,21 +17,41 @@ class Users(SyncResource):
     The ID is slightly faster; with only a username the API resolves it for you.
     """
 
-    def get_by_username(self, username: str) -> Any:
+    def get_by_username(
+        self,
+        username: str,
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
         """Profile by handle (a leading ``@`` is fine). Includes the numeric ``rest_id``."""
-        return self._get(E.user_by_username(username))
+        return self._get(E.user_by_username(username), response_format)
 
-    def get_by_id(self, user_id: ID) -> Any:
+    def get_by_id(
+        self,
+        user_id: ID,
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
         """Profile by numeric user ID."""
-        return self._get(E.user_by_id(user_id))
+        return self._get(E.user_by_id(user_id), response_format)
 
-    def username_to_id(self, username: str) -> Any:
+    def username_to_id(
+        self,
+        username: str,
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
         """Resolve a handle to its numeric user ID. Smaller and cheaper than ``get_by_username``."""
-        return self._get(E.username_to_id(username))
+        return self._get(E.username_to_id(username), response_format)
 
-    def get_many(self, user_ids: Iterable[ID]) -> Any:
+    def get_many(
+        self,
+        user_ids: Iterable[ID],
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
         """Profiles for up to 100 users by numeric ID, in one call."""
-        return self._get(E.users_by_ids(user_ids))
+        return self._get(E.users_by_ids(user_ids), response_format)
 
     def tweets(
         self,
@@ -39,9 +60,11 @@ class Users(SyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """A user's tweets, newest first, without replies. Paginated."""
-        return self._get(E.user_timeline("tweets", user_id, username, count, cursor))
+        request = E.user_timeline("tweets", user_id, username, count, cursor)
+        return self._get(request, response_format)
 
     def tweets_and_replies(
         self,
@@ -50,9 +73,11 @@ class Users(SyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """A user's tweets including replies, newest first. Paginated."""
-        return self._get(E.user_timeline("tweets_and_replies", user_id, username, count, cursor))
+        request = E.user_timeline("tweets_and_replies", user_id, username, count, cursor)
+        return self._get(request, response_format)
 
     def media(
         self,
@@ -61,9 +86,11 @@ class Users(SyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """A user's tweets that contain photos or videos. Paginated."""
-        return self._get(E.user_timeline("media", user_id, username, count, cursor))
+        request = E.user_timeline("media", user_id, username, count, cursor)
+        return self._get(request, response_format)
 
     def followers(
         self,
@@ -72,9 +99,11 @@ class Users(SyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """Accounts that follow a user, newest first. Paginated."""
-        return self._get(E.user_timeline("followers", user_id, username, count, cursor))
+        request = E.user_timeline("followers", user_id, username, count, cursor)
+        return self._get(request, response_format)
 
     def following(
         self,
@@ -83,9 +112,11 @@ class Users(SyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """Accounts a user follows. Paginated."""
-        return self._get(E.user_timeline("following", user_id, username, count, cursor))
+        request = E.user_timeline("following", user_id, username, count, cursor)
+        return self._get(request, response_format)
 
     def verified_followers(
         self,
@@ -94,29 +125,51 @@ class Users(SyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """A user's followers that have a verified badge. Paginated."""
-        return self._get(E.user_timeline("verified_followers", user_id, username, count, cursor))
+        request = E.user_timeline("verified_followers", user_id, username, count, cursor)
+        return self._get(request, response_format)
 
 
 class AsyncUsers(AsyncResource):
     """Async version of :class:`Users`."""
 
-    async def get_by_username(self, username: str) -> Any:
+    async def get_by_username(
+        self,
+        username: str,
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
         """Profile by handle (a leading ``@`` is fine). Includes the numeric ``rest_id``."""
-        return await self._get(E.user_by_username(username))
+        return await self._get(E.user_by_username(username), response_format)
 
-    async def get_by_id(self, user_id: ID) -> Any:
+    async def get_by_id(
+        self,
+        user_id: ID,
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
         """Profile by numeric user ID."""
-        return await self._get(E.user_by_id(user_id))
+        return await self._get(E.user_by_id(user_id), response_format)
 
-    async def username_to_id(self, username: str) -> Any:
+    async def username_to_id(
+        self,
+        username: str,
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
         """Resolve a handle to its numeric user ID. Smaller and cheaper than ``get_by_username``."""
-        return await self._get(E.username_to_id(username))
+        return await self._get(E.username_to_id(username), response_format)
 
-    async def get_many(self, user_ids: Iterable[ID]) -> Any:
+    async def get_many(
+        self,
+        user_ids: Iterable[ID],
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
         """Profiles for up to 100 users by numeric ID, in one call."""
-        return await self._get(E.users_by_ids(user_ids))
+        return await self._get(E.users_by_ids(user_ids), response_format)
 
     async def tweets(
         self,
@@ -125,9 +178,11 @@ class AsyncUsers(AsyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """A user's tweets, newest first, without replies. Paginated."""
-        return await self._get(E.user_timeline("tweets", user_id, username, count, cursor))
+        request = E.user_timeline("tweets", user_id, username, count, cursor)
+        return await self._get(request, response_format)
 
     async def tweets_and_replies(
         self,
@@ -136,9 +191,11 @@ class AsyncUsers(AsyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """A user's tweets including replies, newest first. Paginated."""
-        return await self._get(E.user_timeline("tweets_and_replies", user_id, username, count, cursor))
+        request = E.user_timeline("tweets_and_replies", user_id, username, count, cursor)
+        return await self._get(request, response_format)
 
     async def media(
         self,
@@ -147,9 +204,11 @@ class AsyncUsers(AsyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """A user's tweets that contain photos or videos. Paginated."""
-        return await self._get(E.user_timeline("media", user_id, username, count, cursor))
+        request = E.user_timeline("media", user_id, username, count, cursor)
+        return await self._get(request, response_format)
 
     async def followers(
         self,
@@ -158,9 +217,11 @@ class AsyncUsers(AsyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """Accounts that follow a user, newest first. Paginated."""
-        return await self._get(E.user_timeline("followers", user_id, username, count, cursor))
+        request = E.user_timeline("followers", user_id, username, count, cursor)
+        return await self._get(request, response_format)
 
     async def following(
         self,
@@ -169,9 +230,11 @@ class AsyncUsers(AsyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """Accounts a user follows. Paginated."""
-        return await self._get(E.user_timeline("following", user_id, username, count, cursor))
+        request = E.user_timeline("following", user_id, username, count, cursor)
+        return await self._get(request, response_format)
 
     async def verified_followers(
         self,
@@ -180,6 +243,8 @@ class AsyncUsers(AsyncResource):
         username: Optional[str] = None,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """A user's followers that have a verified badge. Paginated."""
-        return await self._get(E.user_timeline("verified_followers", user_id, username, count, cursor))
+        request = E.user_timeline("verified_followers", user_id, username, count, cursor)
+        return await self._get(request, response_format)

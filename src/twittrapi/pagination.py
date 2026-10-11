@@ -16,13 +16,21 @@ Endpoints that are not raw timelines are covered too: ``/search`` wraps the entr
 (communities search and members, jobs search) put the cursor in ``slice_info.next_cursor``.
 Empty timelines (``/user/{id}/likes`` returns ``"timeline": {}``, ``/tweet/{id}/favorites``
 only a ``TimelineTerminateTimeline`` instruction) have no cursor, so iteration stops there.
+
+Pages in the simple format (``response_format="simple"``) need none of this: they carry
+``nextCursor`` and ``hasNextPage`` at the top level, and :func:`simple_next_cursor` reads them.
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-__all__ = ["extract_bottom_cursor", "count_content_entries"]
+__all__ = [
+    "extract_bottom_cursor",
+    "count_content_entries",
+    "is_simple_page",
+    "simple_next_cursor",
+]
 
 # Guard against pathological input; real responses are far smaller.
 _MAX_NODES = 1_000_000
@@ -139,3 +147,19 @@ def page_is_empty(data: Any) -> bool:
         return True
     slices, items = _count_slice_items(data)
     return slices > 0 and items == 0 and lists == 0
+
+
+def is_simple_page(data: Any) -> bool:
+    """True for a list response in the simple format:
+    ``{"data": [...], "nextCursor": ..., "previousCursor": ..., "hasNextPage": ...}``."""
+    return isinstance(data, dict) and "data" in data and "hasNextPage" in data
+
+
+def simple_next_cursor(data: Any) -> Optional[str]:
+    """Returns ``nextCursor`` of a simple-format page, or ``None`` when ``hasNextPage`` is
+    false (the API sets both on the last page: no items, a repeated cursor or X's end
+    marker)."""
+    if not is_simple_page(data) or data.get("hasNextPage") is not True:
+        return None
+    cursor = data.get("nextCursor")
+    return cursor if isinstance(cursor, str) and cursor else None
