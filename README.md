@@ -1,11 +1,18 @@
+<p align="center">
+  <a href="https://twittrapi.com"><img src=".github/banner.png" alt="twittrapi-python: Python client for Twitter/X data, sync and async, no X developer account" width="100%"></a>
+</p>
+
 # twittrapi – Twitter/X API client for Python
 
 [![PyPI](https://img.shields.io/pypi/v/twittrapi.svg)](https://pypi.org/project/twittrapi/) [![Python](https://img.shields.io/pypi/pyversions/twittrapi.svg)](https://pypi.org/project/twittrapi/) [![Tests](https://github.com/twittrapi/twittrapi-python/actions/workflows/test.yml/badge.svg)](https://github.com/twittrapi/twittrapi-python/actions)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Official Python client for [TwittrAPI](https://twittrapi.com), a REST API for public Twitter/X data:
 tweets, profiles, followers, search, lists and communities. From $0.065 per 1,000 calls, no X developer account.
 
-> **Get an API key:** [twittrapi.com/start](https://twittrapi.com/start?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · [Pricing](https://twittrapi.com/pricing?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · [Docs](https://twittrapi.com/docs?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · also available on [RapidAPI](https://rapidapi.com/viperscores-viperscores-default/api/twitter-aio)
+> **Get an API key:** [twittrapi.com/start](https://twittrapi.com/start?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · [Pricing](https://twittrapi.com/pricing?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · [Docs](https://twittrapi.com/docs?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · [Status](https://twittrapi.com/status) · also available on [RapidAPI](https://rapidapi.com/viperscores-viperscores-default/api/twitter-aio)
+
+**SDKs and integrations:** [Node.js](https://github.com/twittrapi/twittrapi-node) · [Go](https://github.com/twittrapi/twittrapi-go) · [MCP server](https://github.com/twittrapi/twittrapi-mcp) · [n8n](https://github.com/twittrapi/n8n-nodes-twittrapi) · [Make](https://github.com/twittrapi/twittrapi-make) · [Apify](https://github.com/twittrapi/twittrapi-apify) · [LangChain](https://github.com/twittrapi/langchain-twittrapi) · [LlamaIndex](https://github.com/twittrapi/llama-index-tools-twittrapi) · [Agent skill](https://github.com/twittrapi/twittrapi-skills) · [Examples](https://github.com/twittrapi/twittrapi-examples)
 
 - Sync (`TwittrAPI`) and async (`AsyncTwittrAPI`) clients with the same methods
 - Works with a direct TwittrAPI key or a RapidAPI key
