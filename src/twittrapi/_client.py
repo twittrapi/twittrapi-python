@@ -102,13 +102,18 @@ class _ClientMixin:
         path: str,
         params: Optional[Mapping[str, Optional[QueryValue]]],
         response_format: Optional[ResponseFormat] = None,
+        body: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         fmt = self._resolve_format(response_format)
-        return {
+        args: Dict[str, Any] = {
             "url": _base.build_url(self._config, path),
             "params": _base.format_params(_base.clean_params(params or {}), fmt),
             "headers": _base.build_headers(self._config),
         }
+        if body is not None:
+            # httpx sets Content-Type: application/json.
+            args["json"] = dict(body)
+        return args
 
     def __repr__(self) -> str:
         return (
@@ -176,11 +181,32 @@ class TwittrAPI(_ClientMixin):
         response_format: Optional[ResponseFormat] = None,
     ) -> Any:
         """Sends a GET request with retries and returns the parsed JSON body."""
-        args = self._request_args(path, params, response_format)
+        return self._request("GET", path, params, None, response_format)
+
+    def _post(
+        self,
+        path: str,
+        params: Optional[Mapping[str, Optional[QueryValue]]] = None,
+        body: Optional[Mapping[str, Any]] = None,
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Sends a POST request with a JSON body, with the same retries as :meth:`_get`."""
+        return self._request("POST", path, params, body, response_format)
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        params: Optional[Mapping[str, Optional[QueryValue]]],
+        body: Optional[Mapping[str, Any]],
+        response_format: Optional[ResponseFormat],
+    ) -> Any:
+        args = self._request_args(path, params, response_format, body)
         attempt = 0
         while True:
             try:
-                response = self._http.get(timeout=self.timeout, **args)
+                response = self._http.request(method, timeout=self.timeout, **args)
             except httpx.TimeoutException as exc:
                 if attempt < self.max_retries:
                     self._sleep(_base.retry_delay(attempt))
@@ -302,11 +328,31 @@ class AsyncTwittrAPI(_ClientMixin):
         *,
         response_format: Optional[ResponseFormat] = None,
     ) -> Any:
-        args = self._request_args(path, params, response_format)
+        return await self._request("GET", path, params, None, response_format)
+
+    async def _post(
+        self,
+        path: str,
+        params: Optional[Mapping[str, Optional[QueryValue]]] = None,
+        body: Optional[Mapping[str, Any]] = None,
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        return await self._request("POST", path, params, body, response_format)
+
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        params: Optional[Mapping[str, Optional[QueryValue]]],
+        body: Optional[Mapping[str, Any]],
+        response_format: Optional[ResponseFormat],
+    ) -> Any:
+        args = self._request_args(path, params, response_format, body)
         attempt = 0
         while True:
             try:
-                response = await self._http.get(timeout=self.timeout, **args)
+                response = await self._http.request(method, timeout=self.timeout, **args)
             except httpx.TimeoutException as exc:
                 if attempt < self.max_retries:
                     await self._sleep(_base.retry_delay(attempt))

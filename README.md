@@ -127,8 +127,19 @@ handle up first.
 client.tweets.get("1585841080431321088")                         # tweet plus reply thread
 client.tweets.get("1585841080431321088", ranking_mode="Recency")  # Relevance, Recency or Likes
 client.tweets.retweeters("1585841080431321088")
-client.tweets.likers("1585841080431321088")    # often empty: X hides likers for many tweets
 client.tweets.quotes("1585841080431321088")
+```
+
+`likers` works only for your own tweets: X shows who liked a tweet only to its author. Pass the
+cookie of the account that posted the tweet (with `auth_token` and `ct0`) and a proxy; the SDK
+sends them as a POST body. For anyone else's tweet the list is empty.
+
+```python
+client.tweets.likers(
+    "1585841080431321088",
+    cookie="auth_token=...; ct0=...",
+    proxy="http://user:pass@host:port",
+)
 ```
 
 ### Search

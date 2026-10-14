@@ -18,6 +18,13 @@ class SyncResource:
     ) -> Any:
         return self._client._get(request.path, request.params, response_format=response_format)
 
+    def _post(
+        self, request: EndpointRequest, response_format: Optional[ResponseFormat] = None
+    ) -> Any:
+        return self._client._post(
+            request.path, request.params, request.body, response_format=response_format
+        )
+
 
 class AsyncResource:
     def __init__(self, client: "AsyncTwittrAPI") -> None:
@@ -28,4 +35,11 @@ class AsyncResource:
     ) -> Any:
         return await self._client._get(
             request.path, request.params, response_format=response_format
+        )
+
+    async def _post(
+        self, request: EndpointRequest, response_format: Optional[ResponseFormat] = None
+    ) -> Any:
+        return await self._client._post(
+            request.path, request.params, request.body, response_format=response_format
         )

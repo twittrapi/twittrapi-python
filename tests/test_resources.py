@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import inspect
+import json
 from typing import Any, Callable, Dict
 
 import pytest
 
 from twittrapi import AsyncTwittrAPI, TwittrAPI
 
-from .conftest import MockAPI
+from .conftest import MockAPI, json_response
 
 UID = "44196397"
 TID = "1585841080431321088"
+COOKIE = "auth_token=a; ct0=b"
+PROXY = "http://user:pass@1.2.3.4:8080"
 
 # (call, expected path, expected query params)
 CASES = [
@@ -51,7 +54,8 @@ CASES = [
         {"rankingMode": "Recency", "cursor": "x"},
     ),
     (lambda c: c.tweets.retweeters(TID, count=40), f"/tweet/{TID}/retweets", {"count": "40"}),
-    (lambda c: c.tweets.likers(TID, cursor="y"), f"/tweet/{TID}/favorites", {"cursor": "y"}),
+    # likers is a POST: paging goes in the body, see test_likers_posts_json_body
+    (lambda c: c.tweets.likers(TID, cookie=COOKIE, proxy=PROXY, cursor="y"), f"/tweet/{TID}/favorites", {}),
     (lambda c: c.tweets.quotes(TID), f"/tweet/{TID}/quotes", {}),
     # search
     (lambda c: c.search.tweets("python"), "/search", {"searchItem": "python"}),
@@ -81,6 +85,52 @@ def _check(api: MockAPI, path: str, params: Dict[str, str]) -> None:
     req = api.last
     assert req.url.raw_path.decode().split("?")[0] == path
     assert dict(req.url.params) == params
+
+
+LIKERS_BODY = {"cookie": COOKIE, "proxy": PROXY, "count": 100, "cursor": "y"}
+
+
+def _check_likers(api: MockAPI) -> None:
+    assert len(api.requests) == 1
+    req = api.last
+    assert req.method == "POST"
+    assert req.url.raw_path.decode() == f"/tweet/{TID}/favorites"
+    assert req.headers["content-type"] == "application/json"
+    assert json.loads(req.content) == LIKERS_BODY
+
+
+def test_likers_posts_json_body(api: MockAPI) -> None:
+    api.client().tweets.likers(TID, cookie=COOKIE, proxy=PROXY, count=100, cursor="y")
+    _check_likers(api)
+
+
+async def test_async_likers_posts_json_body(api: MockAPI) -> None:
+    await api.async_client().tweets.likers(TID, cookie=COOKIE, proxy=PROXY, count=100, cursor="y")
+    _check_likers(api)
+
+
+def test_other_methods_send_get_without_body(api: MockAPI) -> None:
+    api.client().tweets.retweeters(TID)
+    assert api.last.method == "GET"
+    assert api.last.content == b""
+
+
+def test_likers_paginate_sends_cursor_in_body() -> None:
+    first = {"data": {"timeline": {"instructions": [{"type": "TimelineAddEntries", "entries": [
+        {"entryId": "user-1", "content": {}},
+        {"entryId": "cursor-bottom-1", "content": {"cursorType": "Bottom", "value": "c1"}},
+    ]}]}}}
+    last = {"data": {"timeline": {"instructions": [{"type": "TimelineAddEntries", "entries": [
+        {"entryId": "user-2", "content": {}},
+    ]}]}}}
+    api = MockAPI(json_response(first), json_response(last))
+    client = api.client()
+    pages = list(client.paginate(client.tweets.likers, TID, cookie=COOKIE, proxy=PROXY, count=50))
+    assert len(pages) == 2
+    bodies = [json.loads(r.content) for r in api.requests]
+    assert [b.get("cursor") for b in bodies] == [None, "c1"]
+    assert all(b["count"] == 50 and b["cookie"] == COOKIE for b in bodies)
+    assert all(r.method == "POST" and not r.url.params for r in api.requests)
 
 
 @pytest.mark.parametrize("call,path,params", CASES)
@@ -143,6 +193,11 @@ def test_expected_method_names() -> None:
         (lambda c: c.tweets.get("12a"), ValueError),
         (lambda c: c.tweets.get(True), TypeError),
         (lambda c: c.tweets.get(TID, ranking_mode="Newest"), ValueError),
+        (lambda c: c.tweets.likers("12a", cookie=COOKIE, proxy=PROXY), ValueError),
+        (lambda c: c.tweets.likers(TID, cookie=" ", proxy=PROXY), ValueError),
+        (lambda c: c.tweets.likers(TID, cookie=COOKIE, proxy=""), ValueError),
+        (lambda c: c.tweets.likers(TID, cookie=None, proxy=PROXY), ValueError),
+        (lambda c: c.tweets.likers(TID, cookie=COOKIE, proxy=PROXY, count=101), ValueError),
         (lambda c: c.search.tweets(""), ValueError),
         (lambda c: c.search.tweets("x", category="Recent"), ValueError),
         (lambda c: c.search.tweets("x", count=0), ValueError),

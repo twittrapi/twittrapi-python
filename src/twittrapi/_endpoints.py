@@ -4,14 +4,15 @@ Each function validates its arguments and returns an :class:`EndpointRequest` (p
 parameters). The sync and async resource classes both call these, so the mapping from Python
 arguments to the HTTP request lives in one place.
 
-All endpoints are GET requests that return X's raw GraphQL JSON.
+All endpoints return X's raw GraphQL JSON. They are GET requests, except tweet likers, which is a
+POST with the author's cookie and a proxy in a JSON body.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, Optional, Union
+from typing import Any, Dict, Iterable, Optional, Union
 from urllib.parse import quote
 
 ID = Union[str, int]
@@ -31,6 +32,9 @@ RANKING_MODES = ("Relevance", "Recency", "Likes")
 class EndpointRequest:
     path: str
     params: Dict[str, QueryValue] = field(default_factory=dict)
+    method: str = "GET"
+    # JSON body, sent only with POST.
+    body: Optional[Dict[str, Any]] = None
 
 
 def _seg(value: str) -> str:
@@ -185,8 +189,18 @@ def tweet_retweeters(tweet_id: ID, count: Optional[int], cursor: Optional[str]) 
     return _tweet_sub("retweets", tweet_id, count, cursor)
 
 
-def tweet_likers(tweet_id: ID, count: Optional[int], cursor: Optional[str]) -> EndpointRequest:
-    return _tweet_sub("favorites", tweet_id, count, cursor)
+def tweet_likers(
+    tweet_id: ID, cookie: str, proxy: str, count: Optional[int], cursor: Optional[str]
+) -> EndpointRequest:
+    """POST with the cookie of the account that posted the tweet and a proxy in the body.
+    X shows likers only to the author. Paging goes in the body too."""
+    path = f"/tweet/{_numeric_id(tweet_id, 'tweet_id')}/favorites"
+    body: Dict[str, Any] = {
+        "cookie": _non_empty(cookie, "cookie"),
+        "proxy": _non_empty(proxy, "proxy"),
+    }
+    body.update(_paging(count, cursor))
+    return EndpointRequest(path, method="POST", body=body)
 
 
 def tweet_quotes(tweet_id: ID, count: Optional[int], cursor: Optional[str]) -> EndpointRequest:

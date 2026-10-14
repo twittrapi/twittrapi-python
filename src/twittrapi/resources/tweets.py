@@ -43,12 +43,22 @@ class Tweets(SyncResource):
         self,
         tweet_id: ID,
         *,
+        cookie: str,
+        proxy: str,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
         response_format: Optional[ResponseFormat] = None,
     ) -> Any:
-        """Users who liked a tweet. X hides likers for many tweets, so this can be empty."""
-        return self._get(E.tweet_likers(tweet_id, count, cursor), response_format)
+        """Users who liked a tweet. Paginated.
+
+        Works only for your own tweets: X shows likers only to the author. ``cookie`` is the
+        Cookie header of the account that posted the tweet (with ``auth_token`` and ``ct0``),
+        ``proxy`` is ``http://user:pass@host:port``. Both, and the paging, are sent as a POST
+        body. For anyone else's tweet the list is empty.
+        """
+        return self._post(
+            E.tweet_likers(tweet_id, cookie, proxy, count, cursor), response_format
+        )
 
     def quotes(
         self,
@@ -95,12 +105,22 @@ class AsyncTweets(AsyncResource):
         self,
         tweet_id: ID,
         *,
+        cookie: str,
+        proxy: str,
         count: Optional[int] = None,
         cursor: Optional[str] = None,
         response_format: Optional[ResponseFormat] = None,
     ) -> Any:
-        """Users who liked a tweet. X hides likers for many tweets, so this can be empty."""
-        return await self._get(E.tweet_likers(tweet_id, count, cursor), response_format)
+        """Users who liked a tweet. Paginated.
+
+        Works only for your own tweets: X shows likers only to the author. ``cookie`` is the
+        Cookie header of the account that posted the tweet (with ``auth_token`` and ``ct0``),
+        ``proxy`` is ``http://user:pass@host:port``. Both, and the paging, are sent as a POST
+        body. For anyone else's tweet the list is empty.
+        """
+        return await self._post(
+            E.tweet_likers(tweet_id, cookie, proxy, count, cursor), response_format
+        )
 
     async def quotes(
         self,

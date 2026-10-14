@@ -126,7 +126,15 @@ def test_paginate_likes_stops_after_empty_page() -> None:
 def test_paginate_favorites_stops_after_terminate() -> None:
     api = MockAPI(json_response(live("tweet-tweetid-favorites")))
     with api.client() as client:
-        pages = list(client.paginate(client.tweets.likers, "2019881223666233717", max_pages=None))
+        pages = list(
+            client.paginate(
+                client.tweets.likers,
+                "2019881223666233717",
+                cookie="auth_token=a; ct0=b",
+                proxy="http://u:p@h:1",
+                max_pages=None,
+            )
+        )
     assert len(pages) == 1 and len(api.requests) == 1
 
 

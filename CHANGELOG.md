@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-14
+
+### Changed
+
+- **Breaking:** `tweets.likers` now sends POST with a JSON body and requires the keyword
+  arguments `cookie` (the Cookie header of the account that posted the tweet, with `auth_token`
+  and `ct0`) and `proxy` (`http://user:pass@host:port`). `count` and `cursor` go in the body;
+  `paginate()` works as before. X shows likers only to the tweet's author, so this works only for
+  your own tweets. The API now answers a GET, or a body without cookie or proxy, with 400.
+
 ## [0.2.1] - 2026-10-14
 
 ### Changed
@@ -60,7 +70,8 @@ All notable changes to this project are documented here. The format follows
 - `paginate()` and `extract_bottom_cursor()` for following X's timeline cursors (best-effort).
 - `py.typed` marker.
 
-[Unreleased]: https://github.com/twittrapi/twittrapi-python/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/twittrapi/twittrapi-python/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/twittrapi/twittrapi-python/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/twittrapi/twittrapi-python/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/twittrapi/twittrapi-python/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/twittrapi/twittrapi-python/releases/tag/v0.1.0
