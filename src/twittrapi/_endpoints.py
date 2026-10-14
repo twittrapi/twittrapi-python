@@ -20,7 +20,7 @@ QueryValue = Union[str, int]
 _NUMERIC = re.compile(r"^\d{1,30}$")
 _WOEID = re.compile(r"^\d{1,12}$")
 
-MAX_USERS_PER_LOOKUP = 100
+MAX_USERS_PER_LOOKUP = 500
 # X treats count as a hint (pages can be larger or smaller); TwittrAPI accepts 1..100.
 MAX_COUNT = 100
 SEARCH_CATEGORIES = ("Top", "Latest", "People", "Photos", "Videos")

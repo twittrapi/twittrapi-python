@@ -138,7 +138,7 @@ def test_expected_method_names() -> None:
         (lambda c: c.users.get_by_id("jack"), ValueError),
         (lambda c: c.users.get_by_username(""), ValueError),
         (lambda c: c.users.get_many([]), ValueError),
-        (lambda c: c.users.get_many([str(i) for i in range(101)]), ValueError),
+        (lambda c: c.users.get_many([str(i) for i in range(501)]), ValueError),
         (lambda c: c.users.get_many("123"), TypeError),
         (lambda c: c.tweets.get("12a"), ValueError),
         (lambda c: c.tweets.get(True), TypeError),
@@ -157,6 +157,6 @@ def test_client_side_validation(api: MockAPI, call: Callable[[Any], Any], exc: t
     assert api.requests == []
 
 
-def test_get_many_accepts_exactly_100(api: MockAPI) -> None:
-    api.client().users.get_many(range(1, 101))
-    assert len(api.last.url.params["ids"].split(",")) == 100
+def test_get_many_accepts_exactly_500(api: MockAPI) -> None:
+    api.client().users.get_many(range(1, 501))
+    assert len(api.last.url.params["ids"].split(",")) == 500

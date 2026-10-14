@@ -50,7 +50,7 @@ class Users(SyncResource):
         *,
         response_format: Optional[ResponseFormat] = None,
     ) -> Any:
-        """Profiles for up to 100 users by numeric ID, in one call."""
+        """Profiles for up to 500 users by numeric ID, in one call."""
         return self._get(E.users_by_ids(user_ids), response_format)
 
     def tweets(
@@ -168,7 +168,7 @@ class AsyncUsers(AsyncResource):
         *,
         response_format: Optional[ResponseFormat] = None,
     ) -> Any:
-        """Profiles for up to 100 users by numeric ID, in one call."""
+        """Profiles for up to 500 users by numeric ID, in one call."""
         return await self._get(E.users_by_ids(user_ids), response_format)
 
     async def tweets(

@@ -106,7 +106,7 @@ IDs can be passed as `str` or `int`. Usernames can include a leading `@`.
 client.users.get_by_username("jack")
 client.users.get_by_id("12")
 client.users.username_to_id("jack")             # smaller response when you only need the ID
-client.users.get_many(["12", "44196397"])       # up to 100 IDs per call
+client.users.get_many(["12", "44196397"])       # up to 500 IDs per call
 
 # Timelines take user_id or username=
 client.users.tweets("12", count=20)
@@ -287,7 +287,7 @@ except TwittrAPIError as exc:
     print(f"API error: {exc}")
 ```
 
-Invalid arguments (a non-numeric ID, more than 100 IDs, an unknown `category`) raise
+Invalid arguments (a non-numeric ID, more than 500 IDs, an unknown `category`) raise
 `ValueError` or `TypeError` before any request is sent.
 
 ### Retries
