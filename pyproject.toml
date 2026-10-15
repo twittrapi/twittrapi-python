@@ -13,7 +13,7 @@ requires-python = ">=3.9"
 authors = [{ name = "TwittrAPI" }]
 keywords = ["twitter api", "x api", "twitter scraper", "tweets", "twitter search", "twitter followers", "social media data", "twittrapi", "sdk", "python"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",

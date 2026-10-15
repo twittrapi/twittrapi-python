@@ -4,7 +4,9 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0] - 2026-10-15
+
+First stable release: the API is stable and follows semantic versioning.
 
 ### Added
 
@@ -79,7 +81,7 @@ All notable changes to this project are documented here. The format follows
 - `paginate()` and `extract_bottom_cursor()` for following X's timeline cursors (best-effort).
 - `py.typed` marker.
 
-[Unreleased]: https://github.com/twittrapi/twittrapi-python/compare/v0.3.0...HEAD
+[1.0.0]: https://github.com/twittrapi/twittrapi-python/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/twittrapi/twittrapi-python/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/twittrapi/twittrapi-python/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/twittrapi/twittrapi-python/compare/v0.1.0...v0.2.0
