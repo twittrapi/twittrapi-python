@@ -129,3 +129,98 @@ async def test_async_rapidapi_headers(api: MockAPI) -> None:
 
 def test_repr_does_not_leak_key() -> None:
     assert "secret" not in repr(TwittrAPI(api_key="secret"))
+
+
+def test_rapidapi_host_option(api: MockAPI) -> None:
+    client = api.client(api_key=None, rapidapi_key="rk", rapidapi_host="twttr.p.rapidapi.com")
+    client.trends.get(1)
+    assert str(api.last.url) == "https://twttr.p.rapidapi.com/trends/1"
+    assert api.last.headers["x-rapidapi-host"] == "twttr.p.rapidapi.com"
+    assert client.rapidapi_host == "twttr.p.rapidapi.com"
+    assert "rapidapi_host='twttr.p.rapidapi.com'" in repr(client)
+
+
+def test_rapidapi_host_default(api: MockAPI) -> None:
+    client = api.client(api_key=None, rapidapi_key="rk")
+    assert client.rapidapi_host == twittrapi.RAPIDAPI_HOST == "twitter-aio.p.rapidapi.com"
+    assert twittrapi.RAPIDAPI_BASE_URL == "https://twitter-aio.p.rapidapi.com"
+
+
+def test_rapidapi_host_env(api: MockAPI, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RAPIDAPI_KEY", "env-rapid")
+    monkeypatch.setenv("RAPIDAPI_HOST", "https://twttr.p.rapidapi.com/")
+    client = api.client(api_key=None)
+    client.trends.locations()
+    assert str(api.last.url) == "https://twttr.p.rapidapi.com/misc/locations"
+    assert api.last.headers["x-rapidapi-host"] == "twttr.p.rapidapi.com"
+
+
+def test_rapidapi_host_option_beats_env(api: MockAPI, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RAPIDAPI_HOST", "env.p.rapidapi.com")
+    client = api.client(api_key=None, rapidapi_key="rk", rapidapi_host="opt.p.rapidapi.com")
+    assert client.rapidapi_host == "opt.p.rapidapi.com"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "twttr.p.rapidapi.com",
+        "https://twttr.p.rapidapi.com",
+        "http://twttr.p.rapidapi.com/",
+        "  twttr.p.rapidapi.com/  ",
+        "HTTPS://Twttr.P.RapidAPI.com",
+    ],
+)
+def test_rapidapi_host_normalized(value: str) -> None:
+    client = TwittrAPI(rapidapi_key="rk", rapidapi_host=value)
+    assert client.rapidapi_host == "twttr.p.rapidapi.com"
+    assert client.base_url == "https://twttr.p.rapidapi.com"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "twttr.p.rapidapi.com/v2",
+        "https://twttr.p.rapidapi.com/x/",
+        "twttr p.rapidapi.com",
+        "https://",
+    ],
+)
+def test_rapidapi_host_invalid(value: str) -> None:
+    with pytest.raises(ValueError, match="rapidapi_host"):
+        TwittrAPI(rapidapi_key="rk", rapidapi_host=value)
+
+
+def test_invalid_rapidapi_host_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RAPIDAPI_HOST", "twttr.p.rapidapi.com/path")
+    with pytest.raises(ValueError, match="rapidapi_host"):
+        AsyncTwittrAPI(rapidapi_key="rk")
+
+
+def test_base_url_beats_rapidapi_host(api: MockAPI) -> None:
+    client = api.client(
+        api_key=None,
+        rapidapi_key="rk",
+        rapidapi_host="twttr.p.rapidapi.com",
+        base_url="http://localhost:8080/",
+    )
+    client.trends.get(1)
+    assert str(api.last.url) == "http://localhost:8080/trends/1"
+    assert api.last.headers["x-rapidapi-host"] == "twttr.p.rapidapi.com"
+
+
+def test_direct_mode_ignores_rapidapi_host(api: MockAPI, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RAPIDAPI_HOST", "not a host/")
+    client = api.client(rapidapi_host="twttr.p.rapidapi.com")
+    client.trends.get(1)
+    assert str(api.last.url) == "https://api.twittrapi.com/trends/1"
+    assert "x-rapidapi-host" not in api.last.headers
+    assert client.rapidapi_host is None
+    assert "rapidapi_host" not in repr(client)
+
+
+async def test_async_rapidapi_host(api: MockAPI) -> None:
+    client = api.async_client(api_key=None, rapidapi_key="rk", rapidapi_host="twttr.p.rapidapi.com")
+    await client.trends.get(1)
+    assert str(api.last.url) == "https://twttr.p.rapidapi.com/trends/1"
+    assert api.last.headers["x-rapidapi-host"] == "twttr.p.rapidapi.com"

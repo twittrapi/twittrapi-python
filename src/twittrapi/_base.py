@@ -7,6 +7,7 @@ import email.utils
 import json
 import os
 import random
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Mapping, Optional, Union, cast
@@ -41,6 +42,7 @@ MAX_RETRY_AFTER = 60.0
 ENV_API_KEY = "TWITTRAPI_API_KEY"
 ENV_RAPIDAPI_KEY = "RAPIDAPI_KEY"
 ENV_BASE_URL = "TWITTRAPI_BASE_URL"
+ENV_RAPIDAPI_HOST = "RAPIDAPI_HOST"
 
 USER_AGENT = f"twittrapi-python/{__version__}"
 
@@ -66,6 +68,7 @@ class ClientConfig:
     mode: str  # "direct" or "rapidapi"
     api_key: str
     base_url: str
+    rapidapi_host: Optional[str] = None  # set in RapidAPI mode only
 
     @property
     def is_rapidapi(self) -> bool:
@@ -79,11 +82,27 @@ def _clean(value: Optional[str]) -> Optional[str]:
     return value or None
 
 
+_SCHEME = re.compile(r"^https?://", re.IGNORECASE)
+_HOST = re.compile(r"^[A-Za-z0-9.-]+(:[0-9]+)?$")
+
+
+def normalize_rapidapi_host(value: str) -> str:
+    """Accepts ``twttr.p.rapidapi.com``, ``https://twttr.p.rapidapi.com`` or either with a
+    trailing slash and returns the bare host. Anything with a path or spaces is rejected."""
+    host = _SCHEME.sub("", value.strip()).rstrip("/")
+    if not _HOST.match(host):
+        raise ValueError(
+            f"rapidapi_host must be a host name like \"twitter-aio.p.rapidapi.com\", got {value!r}"
+        )
+    return host.lower()
+
+
 def resolve_config(
     api_key: Optional[str],
     rapidapi_key: Optional[str],
     base_url: Optional[str],
     env: Optional[Mapping[str, str]] = None,
+    rapidapi_host: Optional[str] = None,
 ) -> ClientConfig:
     """Picks the auth mode. Explicit arguments win over environment variables; within each,
     the direct key wins over the RapidAPI key."""
@@ -112,19 +131,25 @@ def resolve_config(
             "environment variable."
         )
 
+    # The RapidAPI host picks the listing (same paths on every listing). Direct mode ignores it.
+    host: Optional[str] = None
+    if mode == "rapidapi":
+        raw_host = _clean(rapidapi_host) or _clean(env.get(ENV_RAPIDAPI_HOST))
+        host = normalize_rapidapi_host(raw_host) if raw_host else RAPIDAPI_HOST
+
     url = _clean(base_url)
     if url is None and mode == "direct":
         url = _clean(env.get(ENV_BASE_URL))
     if url is None:
-        url = RAPIDAPI_BASE_URL if mode == "rapidapi" else DEFAULT_BASE_URL
-    return ClientConfig(mode=mode, api_key=key, base_url=url.rstrip("/"))
+        url = f"https://{host}" if host else DEFAULT_BASE_URL
+    return ClientConfig(mode=mode, api_key=key, base_url=url.rstrip("/"), rapidapi_host=host)
 
 
 def build_headers(config: ClientConfig) -> Dict[str, str]:
     headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
     if config.is_rapidapi:
         headers["x-rapidapi-key"] = config.api_key
-        headers["x-rapidapi-host"] = RAPIDAPI_HOST
+        headers["x-rapidapi-host"] = config.rapidapi_host or RAPIDAPI_HOST
     else:
         headers["X-API-KEY"] = config.api_key
     return headers

@@ -60,6 +60,10 @@ user = client.users.get_by_username("jack")
 Requests go to `https://twitter-aio.p.rapidapi.com` with `x-rapidapi-key` and `x-rapidapi-host`
 headers.
 
+Subscribed to another TwittrAPI listing on RapidAPI? Set its host:
+`TwittrAPI(rapidapi_key="...", rapidapi_host="twttr.p.rapidapi.com")`, or the `RAPIDAPI_HOST`
+environment variable.
+
 ### Environment variables
 
 With no key argument, the client reads `TWITTRAPI_API_KEY`, then `RAPIDAPI_KEY`:

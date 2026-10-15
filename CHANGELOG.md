@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `rapidapi_host` option on `TwittrAPI` and `AsyncTwittrAPI` (and the `RAPIDAPI_HOST`
+  environment variable) for customers subscribed to another TwittrAPI listing on RapidAPI. It
+  sets the `x-rapidapi-host` header and the base URL (`https://<host>`, unless `base_url` is
+  passed). Accepts a bare host or a URL like `https://twttr.p.rapidapi.com/`; values with a path
+  or spaces raise `ValueError`. The default stays `twitter-aio.p.rapidapi.com`, direct mode
+  ignores it. The client exposes the host as `client.rapidapi_host`.
+
 ## [0.3.0] - 2026-10-14
 
 ### Changed

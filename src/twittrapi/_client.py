@@ -92,6 +92,11 @@ class _ClientMixin:
         """``"direct"`` (X-API-KEY header) or ``"rapidapi"`` (x-rapidapi-key header)."""
         return self._config.mode
 
+    @property
+    def rapidapi_host(self) -> Optional[str]:
+        """The RapidAPI host sent as ``x-rapidapi-host``, or ``None`` in direct mode."""
+        return self._config.rapidapi_host
+
     def _resolve_format(self, response_format: Optional[ResponseFormat]) -> ResponseFormat:
         if response_format is None:
             return self.response_format
@@ -118,7 +123,8 @@ class _ClientMixin:
     def __repr__(self) -> str:
         return (
             f"{type(self).__name__}(auth_mode={self.auth_mode!r}, base_url={self.base_url!r}, "
-            f"response_format={self.response_format!r})"
+            + (f"rapidapi_host={self.rapidapi_host!r}, " if self.rapidapi_host else "")
+            + f"response_format={self.response_format!r})"
         )
 
 
@@ -127,7 +133,8 @@ class TwittrAPI(_ClientMixin):
 
     Auth: pass ``api_key`` for the direct API (https://twittrapi.com) or ``rapidapi_key`` for
     RapidAPI. With neither, the ``TWITTRAPI_API_KEY`` and then ``RAPIDAPI_KEY`` environment
-    variables are used.
+    variables are used. ``rapidapi_host`` (or ``RAPIDAPI_HOST``) selects the RapidAPI listing
+    you subscribed to; the default is ``twitter-aio.p.rapidapi.com``.
 
     Every method returns the parsed JSON from the API. By default that is X's raw GraphQL
     response. With ``response_format="simple"`` (here for every call, or per call on any
@@ -152,13 +159,16 @@ class TwittrAPI(_ClientMixin):
         api_key: Optional[str] = None,
         *,
         rapidapi_key: Optional[str] = None,
+        rapidapi_host: Optional[str] = None,
         base_url: Optional[str] = None,
         timeout: TimeoutTypes = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
         http_client: Optional[httpx.Client] = None,
         response_format: ResponseFormat = DEFAULT_RESPONSE_FORMAT,
     ) -> None:
-        self._config = _base.resolve_config(api_key, rapidapi_key, base_url)
+        self._config = _base.resolve_config(
+            api_key, rapidapi_key, base_url, rapidapi_host=rapidapi_host
+        )
         self.response_format = _base.check_response_format(response_format)
         self.max_retries = _check_max_retries(max_retries)
         self.timeout = _base.make_timeout(timeout)
@@ -300,13 +310,16 @@ class AsyncTwittrAPI(_ClientMixin):
         api_key: Optional[str] = None,
         *,
         rapidapi_key: Optional[str] = None,
+        rapidapi_host: Optional[str] = None,
         base_url: Optional[str] = None,
         timeout: TimeoutTypes = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
         http_client: Optional[httpx.AsyncClient] = None,
         response_format: ResponseFormat = DEFAULT_RESPONSE_FORMAT,
     ) -> None:
-        self._config = _base.resolve_config(api_key, rapidapi_key, base_url)
+        self._config = _base.resolve_config(
+            api_key, rapidapi_key, base_url, rapidapi_host=rapidapi_host
+        )
         self.response_format = _base.check_response_format(response_format)
         self.max_retries = _check_max_retries(max_retries)
         self.timeout = _base.make_timeout(timeout)
