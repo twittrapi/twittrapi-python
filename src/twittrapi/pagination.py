@@ -17,12 +17,17 @@ Endpoints that are not raw timelines are covered too: ``/search`` wraps the entr
 Empty timelines (``/user/{id}/likes`` returns ``"timeline": {}``, ``/tweet/{id}/favorites``
 only a ``TimelineTerminateTimeline`` instruction) have no cursor, so iteration stops there.
 
+Account reads (``client.account.bookmarks`` and the like) wrap X's JSON in a string
+(``{"status_code": ..., "response": "<X body>"}``); :func:`unwrap_client_response` decodes it
+and the paginator searches the decoded body.
+
 Pages in the simple format (``response_format="simple"``) need none of this: they carry
 ``nextCursor`` and ``hasNextPage`` at the top level, and :func:`simple_next_cursor` reads them.
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 __all__ = [
@@ -30,6 +35,7 @@ __all__ = [
     "count_content_entries",
     "is_simple_page",
     "simple_next_cursor",
+    "unwrap_client_response",
 ]
 
 # Guard against pathological input; real responses are far smaller.
@@ -163,3 +169,23 @@ def simple_next_cursor(data: Any) -> Optional[str]:
         return None
     cursor = data.get("nextCursor")
     return cursor if isinstance(cursor, str) and cursor else None
+
+
+def unwrap_client_response(data: Any) -> Any:
+    """Returns X's parsed JSON from an account action's answer.
+
+    Account actions and reads (``client.account``, the ``/client/...`` routes) answer
+    ``{"status_code": <X's status>, "response": "<X's body as a string>"}``. This decodes
+    ``response`` and returns it. Anything else (simple-format answers, direct messages, a
+    ``response`` that is not JSON) is returned unchanged.
+    """
+    if (
+        isinstance(data, dict)
+        and "status_code" in data
+        and isinstance(data.get("response"), str)
+    ):
+        try:
+            return json.loads(data["response"])
+        except ValueError:
+            return data
+    return data

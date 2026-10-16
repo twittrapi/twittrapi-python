@@ -4,8 +4,9 @@ Each function validates its arguments and returns an :class:`EndpointRequest` (p
 parameters). The sync and async resource classes both call these, so the mapping from Python
 arguments to the HTTP request lives in one place.
 
-All endpoints return X's raw GraphQL JSON. They are GET requests, except tweet likers, which is a
-POST with the author's cookie and a proxy in a JSON body.
+All endpoints here return X's raw GraphQL JSON. They are GET requests, except tweet likers, which
+is a POST with the author's cookie and a proxy in a JSON body. The account actions
+(``/client/...``, POST with the session in the body) are in :mod:`._account_endpoints`.
 """
 
 from __future__ import annotations
@@ -35,6 +36,10 @@ class EndpointRequest:
     method: str = "GET"
     # JSON body, sent only with POST.
     body: Optional[Dict[str, Any]] = None
+    # False for account actions that change something (post, like, follow, ...): those are
+    # retried only when the request cannot have reached the API, so a retry never repeats
+    # an action. See _base.can_retry_error.
+    idempotent: bool = True
 
 
 def _seg(value: str) -> str:

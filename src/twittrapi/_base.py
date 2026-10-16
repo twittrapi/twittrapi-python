@@ -285,8 +285,22 @@ def process_response(response: httpx.Response) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def should_retry_status(status: int) -> bool:
+def should_retry_status(status: int, idempotent: bool = True) -> bool:
+    """429 and 5xx are retried. For actions that change something (``idempotent=False``)
+    only 429 is: a 5xx can come after the action already happened."""
+    if not idempotent:
+        return status == 429
     return status == 429 or status >= 500
+
+
+# Errors raised before the request was sent, so retrying cannot repeat an action.
+_NOT_SENT_ERRORS = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+
+
+def can_retry_error(exc: Exception, idempotent: bool = True) -> bool:
+    """Whether a timeout or network error may be retried. Reads always may; actions that
+    change something only when the connection was never made."""
+    return idempotent or isinstance(exc, _NOT_SENT_ERRORS)
 
 
 def retry_delay(attempt: int, retry_after: Optional[float] = None) -> float:

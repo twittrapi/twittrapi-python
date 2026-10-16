@@ -1,3 +1,15 @@
+from .account import (
+    Account,
+    AccountCommunities,
+    AccountDM,
+    AccountDrafts,
+    AccountLists,
+    AsyncAccount,
+    AsyncAccountCommunities,
+    AsyncAccountDM,
+    AsyncAccountDrafts,
+    AsyncAccountLists,
+)
 from .communities import AsyncCommunities, Communities
 from .lists import AsyncLists, Lists
 from .search import AsyncSearch, Search
@@ -18,4 +30,14 @@ __all__ = [
     "AsyncCommunities",
     "Trends",
     "AsyncTrends",
+    "Account",
+    "AsyncAccount",
+    "AccountLists",
+    "AsyncAccountLists",
+    "AccountCommunities",
+    "AsyncAccountCommunities",
+    "AccountDrafts",
+    "AsyncAccountDrafts",
+    "AccountDM",
+    "AsyncAccountDM",
 ]

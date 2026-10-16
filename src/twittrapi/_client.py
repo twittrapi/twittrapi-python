@@ -29,8 +29,17 @@ from ._base import (
 )
 from ._endpoints import QueryValue
 from ._exceptions import APIConnectionError, APITimeoutError, RateLimitError
-from .pagination import extract_bottom_cursor, is_simple_page, page_is_empty, simple_next_cursor
+from ._session import XSession
+from .pagination import (
+    extract_bottom_cursor,
+    is_simple_page,
+    page_is_empty,
+    simple_next_cursor,
+    unwrap_client_response,
+)
 from .resources import (
+    Account,
+    AsyncAccount,
     AsyncCommunities,
     AsyncLists,
     AsyncSearch,
@@ -72,6 +81,12 @@ def _next_page_cursor(page: Any, response_format: ResponseFormat) -> Optional[st
     """
     if response_format == "simple" and is_simple_page(page):
         return simple_next_cursor(page)
+    # Account reads (/client/...) wrap X's JSON as {"status_code", "response": "<X body>"};
+    # DM conversations answer {"has_more", "cursor", ...}.
+    page = unwrap_client_response(page)
+    if isinstance(page, dict) and isinstance(page.get("has_more"), bool) and "cursor" in page:
+        cursor = page.get("cursor")
+        return cursor if page["has_more"] and isinstance(cursor, str) and cursor else None
     next_cursor = extract_bottom_cursor(page)
     if not next_cursor or page_is_empty(page):
         return None
@@ -82,6 +97,7 @@ class _ClientMixin:
     _config: ClientConfig
     max_retries: int
     response_format: ResponseFormat
+    session: Optional[XSession]
 
     @property
     def base_url(self) -> str:
@@ -96,6 +112,18 @@ class _ClientMixin:
     def rapidapi_host(self) -> Optional[str]:
         """The RapidAPI host sent as ``x-rapidapi-host``, or ``None`` in direct mode."""
         return self._config.rapidapi_host
+
+    def _resolve_session(self, session: Optional[XSession]) -> XSession:
+        """The session for an account action: the one passed to the call, else the client's."""
+        resolved = session if session is not None else self.session
+        if resolved is None:
+            raise ValueError(
+                "Account actions need an X session: pass session=XSession(cookie=..., "
+                "proxy=...) to the client or to this call."
+            )
+        if not isinstance(resolved, XSession):
+            raise TypeError(f"session must be an XSession, got {type(resolved).__name__}")
+        return resolved
 
     def _resolve_format(self, response_format: Optional[ResponseFormat]) -> ResponseFormat:
         if response_format is None:
@@ -124,7 +152,9 @@ class _ClientMixin:
         return (
             f"{type(self).__name__}(auth_mode={self.auth_mode!r}, base_url={self.base_url!r}, "
             + (f"rapidapi_host={self.rapidapi_host!r}, " if self.rapidapi_host else "")
-            + f"response_format={self.response_format!r})"
+            + f"response_format={self.response_format!r}"
+            + (f", session={self.session!r}" if self.session is not None else "")
+            + ")"
         )
 
 
@@ -144,6 +174,9 @@ class TwittrAPI(_ClientMixin):
     Requests that fail with 429, 5xx or a network error are retried ``max_retries`` times
     with exponential backoff. Other errors raise immediately.
 
+    ``session`` (an :class:`~twittrapi.XSession`) is the X account that ``client.account``
+    actions run as; it can also be passed per call as ``session=``. Read endpoints ignore it.
+
     Use it as a context manager, or call :meth:`close` when done.
     """
 
@@ -153,6 +186,7 @@ class TwittrAPI(_ClientMixin):
     lists: Lists
     communities: Communities
     trends: Trends
+    account: Account
 
     def __init__(
         self,
@@ -165,11 +199,15 @@ class TwittrAPI(_ClientMixin):
         max_retries: int = DEFAULT_MAX_RETRIES,
         http_client: Optional[httpx.Client] = None,
         response_format: ResponseFormat = DEFAULT_RESPONSE_FORMAT,
+        session: Optional[XSession] = None,
     ) -> None:
         self._config = _base.resolve_config(
             api_key, rapidapi_key, base_url, rapidapi_host=rapidapi_host
         )
         self.response_format = _base.check_response_format(response_format)
+        if session is not None and not isinstance(session, XSession):
+            raise TypeError(f"session must be an XSession, got {type(session).__name__}")
+        self.session = session
         self.max_retries = _check_max_retries(max_retries)
         self.timeout = _base.make_timeout(timeout)
         self._owns_http = http_client is None
@@ -182,6 +220,7 @@ class TwittrAPI(_ClientMixin):
         self.lists = Lists(self)
         self.communities = Communities(self)
         self.trends = Trends(self)
+        self.account = Account(self)
 
     def _get(
         self,
@@ -200,9 +239,12 @@ class TwittrAPI(_ClientMixin):
         body: Optional[Mapping[str, Any]] = None,
         *,
         response_format: Optional[ResponseFormat] = None,
+        idempotent: bool = True,
     ) -> Any:
-        """Sends a POST request with a JSON body, with the same retries as :meth:`_get`."""
-        return self._request("POST", path, params, body, response_format)
+        """Sends a POST request with a JSON body, with the same retries as :meth:`_get`.
+        With ``idempotent=False`` (actions that change something) only retries that cannot
+        repeat the action are made, see :func:`_base.can_retry_error`."""
+        return self._request("POST", path, params, body, response_format, idempotent)
 
     def _request(
         self,
@@ -211,6 +253,7 @@ class TwittrAPI(_ClientMixin):
         params: Optional[Mapping[str, Optional[QueryValue]]],
         body: Optional[Mapping[str, Any]],
         response_format: Optional[ResponseFormat],
+        idempotent: bool = True,
     ) -> Any:
         args = self._request_args(path, params, response_format, body)
         attempt = 0
@@ -218,19 +261,21 @@ class TwittrAPI(_ClientMixin):
             try:
                 response = self._http.request(method, timeout=self.timeout, **args)
             except httpx.TimeoutException as exc:
-                if attempt < self.max_retries:
+                if attempt < self.max_retries and _base.can_retry_error(exc, idempotent):
                     self._sleep(_base.retry_delay(attempt))
                     attempt += 1
                     continue
                 raise APITimeoutError(f"Request to TwittrAPI timed out: {exc}") from exc
             except httpx.TransportError as exc:
-                if attempt < self.max_retries:
+                if attempt < self.max_retries and _base.can_retry_error(exc, idempotent):
                     self._sleep(_base.retry_delay(attempt))
                     attempt += 1
                     continue
                 raise APIConnectionError(f"Could not reach TwittrAPI: {exc}") from exc
 
-            if attempt < self.max_retries and _base.should_retry_status(response.status_code):
+            if attempt < self.max_retries and _base.should_retry_status(
+                response.status_code, idempotent
+            ):
                 error = _base.make_status_error(response)
                 retry_after = error.retry_after if isinstance(error, RateLimitError) else None
                 self._sleep(_base.retry_delay(attempt, retry_after))
@@ -304,6 +349,7 @@ class AsyncTwittrAPI(_ClientMixin):
     lists: AsyncLists
     communities: AsyncCommunities
     trends: AsyncTrends
+    account: AsyncAccount
 
     def __init__(
         self,
@@ -316,11 +362,15 @@ class AsyncTwittrAPI(_ClientMixin):
         max_retries: int = DEFAULT_MAX_RETRIES,
         http_client: Optional[httpx.AsyncClient] = None,
         response_format: ResponseFormat = DEFAULT_RESPONSE_FORMAT,
+        session: Optional[XSession] = None,
     ) -> None:
         self._config = _base.resolve_config(
             api_key, rapidapi_key, base_url, rapidapi_host=rapidapi_host
         )
         self.response_format = _base.check_response_format(response_format)
+        if session is not None and not isinstance(session, XSession):
+            raise TypeError(f"session must be an XSession, got {type(session).__name__}")
+        self.session = session
         self.max_retries = _check_max_retries(max_retries)
         self.timeout = _base.make_timeout(timeout)
         self._owns_http = http_client is None
@@ -333,6 +383,7 @@ class AsyncTwittrAPI(_ClientMixin):
         self.lists = AsyncLists(self)
         self.communities = AsyncCommunities(self)
         self.trends = AsyncTrends(self)
+        self.account = AsyncAccount(self)
 
     async def _get(
         self,
@@ -350,8 +401,9 @@ class AsyncTwittrAPI(_ClientMixin):
         body: Optional[Mapping[str, Any]] = None,
         *,
         response_format: Optional[ResponseFormat] = None,
+        idempotent: bool = True,
     ) -> Any:
-        return await self._request("POST", path, params, body, response_format)
+        return await self._request("POST", path, params, body, response_format, idempotent)
 
     async def _request(
         self,
@@ -360,6 +412,7 @@ class AsyncTwittrAPI(_ClientMixin):
         params: Optional[Mapping[str, Optional[QueryValue]]],
         body: Optional[Mapping[str, Any]],
         response_format: Optional[ResponseFormat],
+        idempotent: bool = True,
     ) -> Any:
         args = self._request_args(path, params, response_format, body)
         attempt = 0
@@ -367,19 +420,21 @@ class AsyncTwittrAPI(_ClientMixin):
             try:
                 response = await self._http.request(method, timeout=self.timeout, **args)
             except httpx.TimeoutException as exc:
-                if attempt < self.max_retries:
+                if attempt < self.max_retries and _base.can_retry_error(exc, idempotent):
                     await self._sleep(_base.retry_delay(attempt))
                     attempt += 1
                     continue
                 raise APITimeoutError(f"Request to TwittrAPI timed out: {exc}") from exc
             except httpx.TransportError as exc:
-                if attempt < self.max_retries:
+                if attempt < self.max_retries and _base.can_retry_error(exc, idempotent):
                     await self._sleep(_base.retry_delay(attempt))
                     attempt += 1
                     continue
                 raise APIConnectionError(f"Could not reach TwittrAPI: {exc}") from exc
 
-            if attempt < self.max_retries and _base.should_retry_status(response.status_code):
+            if attempt < self.max_retries and _base.should_retry_status(
+                response.status_code, idempotent
+            ):
                 error = _base.make_status_error(response)
                 retry_after = error.retry_after if isinstance(error, RateLimitError) else None
                 await self._sleep(_base.retry_delay(attempt, retry_after))

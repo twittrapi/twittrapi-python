@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from .._base import ResponseFormat
 from .._endpoints import EndpointRequest
+from .._session import XSession
 
 if TYPE_CHECKING:
     from .._client import AsyncTwittrAPI, TwittrAPI
@@ -12,6 +13,9 @@ if TYPE_CHECKING:
 class SyncResource:
     def __init__(self, client: "TwittrAPI") -> None:
         self._client = client
+
+    def _session(self, session: Optional[XSession]) -> XSession:
+        return self._client._resolve_session(session)
 
     def _get(
         self, request: EndpointRequest, response_format: Optional[ResponseFormat] = None
@@ -22,13 +26,20 @@ class SyncResource:
         self, request: EndpointRequest, response_format: Optional[ResponseFormat] = None
     ) -> Any:
         return self._client._post(
-            request.path, request.params, request.body, response_format=response_format
+            request.path,
+            request.params,
+            request.body,
+            response_format=response_format,
+            idempotent=request.idempotent,
         )
 
 
 class AsyncResource:
     def __init__(self, client: "AsyncTwittrAPI") -> None:
         self._client = client
+
+    def _session(self, session: Optional[XSession]) -> XSession:
+        return self._client._resolve_session(session)
 
     async def _get(
         self, request: EndpointRequest, response_format: Optional[ResponseFormat] = None
@@ -41,5 +52,9 @@ class AsyncResource:
         self, request: EndpointRequest, response_format: Optional[ResponseFormat] = None
     ) -> Any:
         return await self._client._post(
-            request.path, request.params, request.body, response_format=response_format
+            request.path,
+            request.params,
+            request.body,
+            response_format=response_format,
+            idempotent=request.idempotent,
         )

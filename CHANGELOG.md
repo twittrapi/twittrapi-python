@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-10-16
+
+### Added
+
+- Account actions with your own X session: `client.account` (and `AsyncTwittrAPI.account`).
+  Post (text, media, quotes, long posts, community tweets, polls, scheduled tweets), reply,
+  delete, like / unlike, retweet / unretweet, pin / unpin, bookmark / unbookmark, report,
+  follow / unfollow, mute / unmute, block / unblock, scheduled tweets, home timeline, your
+  bookmarks, likes, blocked and muted accounts, followers you know, image and video upload,
+  media status, profile, profile picture and header. Groups: `account.lists` (create, update,
+  delete, add / remove members), `account.communities` (create, delete, join, leave),
+  `account.drafts` (list, create, edit, delete) and `account.dm` (inbox, conversation,
+  conversation info, disappearing messages, send, settings, update settings).
+- `XSession(cookie=..., proxy=..., passcode=None)`: the X session the actions run as. Pass it to
+  the client as `session=` or per call. `repr()` and `str()` hide all three values.
+- `unwrap_client_response()` parses the `response` string of an account action's answer.
+  `paginate()` reads it too, so account reads (bookmarks, likes, ...) and DM conversations
+  paginate like the other endpoints.
+
+### Changed
+
+- Account actions that change something are retried only on 429 and on connection errors
+  (the request never reached the API), not on timeouts or 5xx, so a retry cannot repeat an
+  action. Reads keep the usual retries.
+
 ## [1.0.0] - 2026-10-15
 
 First stable release: the API is stable and follows semantic versioning.

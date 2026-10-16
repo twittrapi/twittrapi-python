@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "twittrapi"
 dynamic = ["version"]
-description = "Python client for TwittrAPI: read public Twitter/X tweets, profiles, followers and search results. Pay as you go from $0.065 per 1,000 calls."
+description = "Python client for TwittrAPI: read public Twitter/X tweets, profiles, followers and search results, and act with your own X account. Pay as you go from $0.065 per 1,000 calls."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

@@ -8,7 +8,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Official Python client for [TwittrAPI](https://twittrapi.com), a REST API for public Twitter/X data:
-tweets, profiles, followers, search, lists and communities. From $0.065 per 1,000 calls, no X developer account.
+tweets, profiles, followers, search, lists and communities, plus actions with your own X account
+(post, like, follow, DMs). From $0.065 per 1,000 calls, no X developer account.
 
 > **Get an API key:** [twittrapi.com/start](https://twittrapi.com/start?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · [Pricing](https://twittrapi.com/pricing?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · [Docs](https://twittrapi.com/docs?utm_source=github&utm_medium=readme&utm_campaign=twittrapi-python) · [Status](https://twittrapi.com/status) · also available on [RapidAPI](https://rapidapi.com/viperscores-viperscores-default/api/twitter-aio)
 
@@ -19,6 +20,7 @@ tweets, profiles, followers, search, lists and communities. From $0.065 per 1,00
 - Retries 429, 5xx and network errors with backoff
 - Typed exceptions for every error class
 - A cursor-following paginator
+- Account actions with your own X session: post, reply, like, follow, upload media, DMs
 - Python 3.9+, one dependency (`httpx`), fully type-annotated
 
 Responses are X's raw GraphQL JSON, returned as plain `dict`/`list` values. The client does not
@@ -181,6 +183,72 @@ client.trends.get(23424977)   # United States
 client.trends.locations()     # every location with trends, with its WOEID
 ```
 
+## Account actions
+
+`client.account` acts as your own X account: post, reply, like, retweet, follow, bookmark, upload
+media, edit your profile, manage lists, communities and drafts, and read or send direct messages.
+
+It needs your X session: the Cookie header of your logged-in account (`auth_token`, `ct0`, and
+`twid` for DMs and likes) and your proxy (`http://user:pass@host:port`). How to get the cookie:
+[twittrapi.com/docs/x-session](https://twittrapi.com/docs/x-session).
+
+```python
+from twittrapi import TwittrAPI, XSession, unwrap_client_response
+
+session = XSession(
+    cookie="auth_token=...; ct0=...; twid=u%3D...",
+    proxy="http://user:pass@host:port",
+)
+client = TwittrAPI(api_key="YOUR_KEY", session=session)
+
+client.account.create_tweet("Hello from the API")
+client.account.reply("1585841080431321088", "Nice")
+client.account.like("1585841080431321088")
+client.account.follow(username="XDevelopers")
+
+uploaded = unwrap_client_response(client.account.upload_image(open("photo.jpg", "rb").read()))
+client.account.create_tweet("With a photo", media_ids=[uploaded["media_id_string"]])
+
+client.account.create_tweet("Tabs or spaces?", poll_choices=["Tabs", "Spaces"])
+client.account.update_profile(description="Building things", location="Berlin")
+
+for page in client.paginate(client.account.bookmarks, max_pages=3):
+    ...
+```
+
+You can also pass `session=` per call instead of to the client, e.g. to act as several accounts
+with one client. `repr()` never shows the cookie, proxy or passcode.
+
+The full list: `create_tweet`, `reply`, `delete_tweet`, `like` / `unlike`, `retweet` /
+`unretweet`, `pin` / `unpin`, `bookmark` / `unbookmark`, `report`, `scheduled_tweets`,
+`delete_scheduled_tweet`, `follow` / `unfollow`, `mute` / `unmute`, `block` / `unblock`,
+`home_timeline`, `bookmarks`, `likes`, `blocked`, `muted`, `followers_you_know`, `upload_image`,
+`upload_video`, `media_status`, `update_profile`, `update_profile_image`,
+`update_profile_banner`, and the groups `account.lists`, `account.communities`,
+`account.drafts` and `account.dm`. Accounts can be given as `user_id` or `username=`.
+
+Answers are `{"status_code": ..., "response": "<X's JSON as a string>"}`;
+`twittrapi.unwrap_client_response()` parses `response`. With `response_format="simple"` you get
+the compact format instead.
+
+Actions that change something are not retried after the request may have reached the API, so a
+retry never posts twice. Reads like `bookmarks` retry as usual.
+
+### Direct messages
+
+DMs on X are end-to-end encrypted. Reading and sending messages needs your X Chat passcode; it is
+used for the request only and not stored.
+
+```python
+session = XSession(cookie="...", proxy="...", passcode="1234")
+client = TwittrAPI(session=session)
+
+client.account.dm.inbox()                         # conversations with their latest messages
+client.account.dm.conversation(user_id="12")      # one chat, newest first, paginated
+client.account.dm.send("Hello", user_id="12")
+client.account.dm.settings()                      # no passcode needed
+```
+
 ## Simple format
 
 By default every method returns X's raw JSON. The API can also answer in a compact, flat,
@@ -211,7 +279,7 @@ user = User.from_dict(client.users.get_by_username("XDevelopers")["data"])
 ```
 
 Same price, parameters and errors as the raw format; only successful responses change.
-Account and status routes ignore the option and answer as usual.
+Status routes ignore the option and answer as usual.
 
 ## Pagination
 
