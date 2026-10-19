@@ -345,11 +345,11 @@ class Page(Generic[T]):
 
 def tweets_page(body: Mapping[str, Any]) -> Page[Union[Tweet, UnavailableTweet]]:
     """Parses a simple-format tweet list (timelines, search, quotes, list and community
-    tweets, a tweet with its replies)."""
+    tweets, a tweet with its replies, ``tweets.replies``, ``tweets.thread``)."""
     return Page.from_dict(body, parse_tweet)
 
 
 def users_page(body: Mapping[str, Any]) -> Page[User]:
     """Parses a simple-format user list (followers, following, likers, retweeters, list
-    members, ``users.get_many``, search with ``category="People"``)."""
+    members, ``users.affiliates``, ``users.get_many``, search with ``category="People"``)."""
     return Page.from_dict(body, User.from_dict)

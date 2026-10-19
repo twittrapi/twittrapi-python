@@ -17,7 +17,15 @@
 Not affiliated with X Corp.
 """
 
-from ._account_endpoints import Birthdate, ReplySettings, ReportReason
+from ._account_endpoints import (
+    ArticleCoverCategory,
+    ArticleLifecycle,
+    ArticleReplyControl,
+    ArticleVisibility,
+    Birthdate,
+    ReplySettings,
+    ReportReason,
+)
 from ._base import DEFAULT_BASE_URL, RAPIDAPI_BASE_URL, RAPIDAPI_HOST, ResponseFormat
 from ._client import DEFAULT_MAX_PAGES, AsyncTwittrAPI, TwittrAPI
 from ._exceptions import (
@@ -45,6 +53,10 @@ __all__ = [
     "Birthdate",
     "ReplySettings",
     "ReportReason",
+    "ArticleLifecycle",
+    "ArticleVisibility",
+    "ArticleReplyControl",
+    "ArticleCoverCategory",
     "TwittrAPIError",
     "APIConnectionError",
     "APITimeoutError",

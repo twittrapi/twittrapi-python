@@ -44,6 +44,26 @@ CASES = [
         "/user/-1/verifiedFollowers",
         {"username": "jack", "count": "20"},
     ),
+    (lambda c: c.users.affiliates(UID), f"/user/{UID}/affiliates", {}),
+    (
+        lambda c: c.users.affiliates(username="@XDevelopers", count=100, cursor="af"),
+        "/user/-1/affiliates",
+        {"username": "XDevelopers", "count": "100", "cursor": "af"},
+    ),
+    (
+        lambda c: c.users.friendships_batch("@jack", ["elonmusk", "@XDevelopers", "ELONMUSK", " x "]),
+        "/user/friendships/batch",
+        {"source_screen_name": "jack", "target_screen_names": "elonmusk,XDevelopers,x"},
+    ),
+    (
+        lambda c: c.users.friendships_batch("jack", (f"user{i}" for i in range(50))),
+        "/user/friendships/batch",
+        {"source_screen_name": "jack", "target_screen_names": ",".join(f"user{i}" for i in range(50))},
+    ),
+    (lambda c: c.users.about_batch(["@jack", "Jack", "XDevelopers"]), "/user/about/batch",
+     {"usernames": "jack,XDevelopers"}),
+    (lambda c: c.users.about_batch([f"u_{i}" for i in range(20)]), "/user/about/batch",
+     {"usernames": ",".join(f"u_{i}" for i in range(20))}),
     # user_id wins over username when both are given
     (lambda c: c.users.tweets(UID, username="jack"), f"/user/{UID}/tweets", {}),
     # tweets
@@ -52,6 +72,18 @@ CASES = [
         lambda c: c.tweets.get(int(TID), ranking_mode="Recency", cursor="x"),
         f"/tweet/{TID}",
         {"rankingMode": "Recency", "cursor": "x"},
+    ),
+    (lambda c: c.tweets.replies(TID), f"/tweet/{TID}/replies", {}),
+    (
+        lambda c: c.tweets.replies(int(TID), ranking_mode="Likes", include_promoted_content=True, cursor="r"),
+        f"/tweet/{TID}/replies",
+        {"rankingMode": "Likes", "includePromotedContent": "true", "cursor": "r"},
+    ),
+    (lambda c: c.tweets.thread(TID), f"/tweet/{TID}/thread", {}),
+    (
+        lambda c: c.tweets.thread(TID, ranking_mode="Recency", include_promoted_content=False),
+        f"/tweet/{TID}/thread",
+        {"rankingMode": "Recency", "includePromotedContent": "false"},
     ),
     (lambda c: c.tweets.retweeters(TID, count=40), f"/tweet/{TID}/retweets", {"count": "40"}),
     # likers is a POST: paging goes in the body, see test_likers_posts_json_body
@@ -70,9 +102,13 @@ CASES = [
     (lambda c: c.lists.members("1234", cursor="m"), "/lists/members", {"listId": "1234", "cursor": "m"}),
     # communities
     (lambda c: c.communities.get(1500), "/communities/1500", {}),
+    (lambda c: c.communities.about(1500), "/communities/1500/about", {}),
     (lambda c: c.communities.tweets("1500", count=10), "/communities/1500/tweets", {"count": "10"}),
     (lambda c: c.communities.search("open source"), "/communities/search/open%20source", {}),
     (lambda c: c.communities.search("a/b", cursor="n"), "/communities/search/a%2Fb", {"cursor": "n"}),
+    # spaces
+    (lambda c: c.spaces.get("1YqKDqWqdPLsV"), "/spaces/1YqKDqWqdPLsV", {}),
+    (lambda c: c.spaces.get(" 1OdKrjPXyRVJX "), "/spaces/1OdKrjPXyRVJX", {}),
     # trends
     (lambda c: c.trends.get(), "/trends/1", {}),
     (lambda c: c.trends.get(23424977), "/trends/23424977", {}),
@@ -155,7 +191,7 @@ def _public_methods(obj: Any) -> Dict[str, Any]:
     }
 
 
-@pytest.mark.parametrize("resource", ["users", "tweets", "search", "lists", "communities", "trends"])
+@pytest.mark.parametrize("resource", ["users", "tweets", "search", "lists", "communities", "spaces", "trends"])
 def test_async_parity(resource: str) -> None:
     sync_res = getattr(TwittrAPI(api_key="k"), resource)
     async_res = getattr(AsyncTwittrAPI(api_key="k"), resource)
@@ -172,11 +208,13 @@ def test_expected_method_names() -> None:
     assert set(_public_methods(c.users)) == {
         "get_by_username", "get_by_id", "username_to_id", "get_many", "tweets",
         "tweets_and_replies", "media", "followers", "following", "verified_followers",
+        "affiliates", "friendships_batch", "about_batch",
     }
-    assert set(_public_methods(c.tweets)) == {"get", "retweeters", "likers", "quotes"}
+    assert set(_public_methods(c.tweets)) == {"get", "replies", "thread", "retweeters", "likers", "quotes"}
     assert set(_public_methods(c.search)) == {"tweets"}
     assert set(_public_methods(c.lists)) == {"details", "tweets", "members"}
-    assert set(_public_methods(c.communities)) == {"get", "tweets", "search"}
+    assert set(_public_methods(c.communities)) == {"get", "about", "tweets", "search"}
+    assert set(_public_methods(c.spaces)) == {"get"}
     assert set(_public_methods(c.trends)) == {"get", "locations"}
 
 
@@ -204,6 +242,35 @@ def test_expected_method_names() -> None:
         (lambda c: c.lists.details("abc"), ValueError),
         (lambda c: c.communities.search("  "), ValueError),
         (lambda c: c.trends.get("us"), ValueError),
+        # new in 1.2.0
+        (lambda c: c.users.affiliates(), ValueError),
+        (lambda c: c.users.affiliates(UID, count=0), ValueError),
+        (lambda c: c.users.affiliates(username="jack", count=101), ValueError),
+        (lambda c: c.users.affiliates("jack"), ValueError),
+        (lambda c: c.users.friendships_batch("jack", []), ValueError),
+        (lambda c: c.users.friendships_batch("jack", "elonmusk"), TypeError),
+        (lambda c: c.users.friendships_batch("jack", ["bad-handle"]), ValueError),
+        (lambda c: c.users.friendships_batch("jack", ["a" * 16]), ValueError),
+        (lambda c: c.users.friendships_batch("jack", ["@"]), ValueError),
+        (lambda c: c.users.friendships_batch("jack", [12]), TypeError),
+        (lambda c: c.users.friendships_batch("", ["x"]), ValueError),
+        (lambda c: c.users.friendships_batch("not valid", ["x"]), ValueError),
+        (lambda c: c.users.friendships_batch("jack", [f"user{i}" for i in range(51)]), ValueError),
+        (lambda c: c.users.about_batch([]), ValueError),
+        (lambda c: c.users.about_batch("jack"), TypeError),
+        (lambda c: c.users.about_batch(["jack", "a.b"]), ValueError),
+        (lambda c: c.users.about_batch([f"u{i}" for i in range(21)]), ValueError),
+        (lambda c: c.tweets.replies("12a"), ValueError),
+        (lambda c: c.tweets.replies(TID, ranking_mode="Newest"), ValueError),
+        (lambda c: c.tweets.replies(TID, include_promoted_content="yes"), TypeError),
+        (lambda c: c.tweets.thread("abc"), ValueError),
+        (lambda c: c.tweets.thread(TID, ranking_mode="Top"), ValueError),
+        (lambda c: c.communities.about("abc"), ValueError),
+        (lambda c: c.spaces.get(""), ValueError),
+        (lambda c: c.spaces.get("1YqK-DqWq"), ValueError),
+        (lambda c: c.spaces.get("a/b"), ValueError),
+        (lambda c: c.spaces.get("a" * 33), ValueError),
+        (lambda c: c.spaces.get(123), TypeError),
     ],
 )
 def test_client_side_validation(api: MockAPI, call: Callable[[Any], Any], exc: type) -> None:
@@ -215,3 +282,16 @@ def test_client_side_validation(api: MockAPI, call: Callable[[Any], Any], exc: t
 def test_get_many_accepts_exactly_500(api: MockAPI) -> None:
     api.client().users.get_many(range(1, 501))
     assert len(api.last.url.params["ids"].split(",")) == 500
+
+
+def test_batch_limits_count_distinct_handles(api: MockAPI) -> None:
+    # 60 entries but only 50 different handles once case-insensitive duplicates are dropped
+    targets = [f"user{i}" for i in range(50)] + [f"USER{i}" for i in range(10)]
+    api.client().users.friendships_batch("jack", targets)
+    assert len(api.last.url.params["target_screen_names"].split(",")) == 50
+    api.client().users.about_batch(["jack"] * 30)
+    assert api.last.url.params["usernames"] == "jack"
+
+
+def test_thread_has_no_cursor() -> None:
+    assert "cursor" not in inspect.signature(TwittrAPI(api_key="k").tweets.thread).parameters

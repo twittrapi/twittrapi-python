@@ -22,6 +22,16 @@ class Communities(SyncResource):
         """Name, description, rules, member count and admins."""
         return self._get(E.community(community_id), response_format)
 
+    def about(
+        self,
+        community_id: ID,
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """The community's About page: description, rules, creation date, moderators and a
+        preview of its members. Raw format only."""
+        return self._get(E.community_about(community_id), response_format)
+
     def tweets(
         self,
         community_id: ID,
@@ -56,6 +66,16 @@ class AsyncCommunities(AsyncResource):
     ) -> Any:
         """Name, description, rules, member count and admins."""
         return await self._get(E.community(community_id), response_format)
+
+    async def about(
+        self,
+        community_id: ID,
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """The community's About page: description, rules, creation date, moderators and a
+        preview of its members. Raw format only."""
+        return await self._get(E.community_about(community_id), response_format)
 
     async def tweets(
         self,

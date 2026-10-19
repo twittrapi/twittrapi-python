@@ -28,6 +28,43 @@ class Tweets(SyncResource):
         """
         return self._get(E.tweet(tweet_id, ranking_mode, cursor), response_format)
 
+    def replies(
+        self,
+        tweet_id: ID,
+        *,
+        ranking_mode: Optional[str] = None,
+        include_promoted_content: Optional[bool] = None,
+        cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Only the replies to a tweet, without the tweet itself. Paginated.
+
+        ``ranking_mode`` orders them: "Relevance" (default), "Recency" or "Likes". In the
+        simple format a list of tweets in display order.
+        """
+        return self._get(
+            E.tweet_replies(tweet_id, ranking_mode, include_promoted_content, cursor),
+            response_format,
+        )
+
+    def thread(
+        self,
+        tweet_id: ID,
+        *,
+        ranking_mode: Optional[str] = None,
+        include_promoted_content: Optional[bool] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """The author's thread around a tweet: their tweets above it and their own replies
+        below it, up to the first reply by someone else.
+
+        Not paginated: long threads are loaded in full, as one billed call. In the simple
+        format a list of tweets in reading order.
+        """
+        return self._get(
+            E.tweet_thread(tweet_id, ranking_mode, include_promoted_content), response_format
+        )
+
     def retweeters(
         self,
         tweet_id: ID,
@@ -89,6 +126,43 @@ class AsyncTweets(AsyncResource):
         Pass ``cursor`` to load more replies.
         """
         return await self._get(E.tweet(tweet_id, ranking_mode, cursor), response_format)
+
+    async def replies(
+        self,
+        tweet_id: ID,
+        *,
+        ranking_mode: Optional[str] = None,
+        include_promoted_content: Optional[bool] = None,
+        cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Only the replies to a tweet, without the tweet itself. Paginated.
+
+        ``ranking_mode`` orders them: "Relevance" (default), "Recency" or "Likes". In the
+        simple format a list of tweets in display order.
+        """
+        return await self._get(
+            E.tweet_replies(tweet_id, ranking_mode, include_promoted_content, cursor),
+            response_format,
+        )
+
+    async def thread(
+        self,
+        tweet_id: ID,
+        *,
+        ranking_mode: Optional[str] = None,
+        include_promoted_content: Optional[bool] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """The author's thread around a tweet: their tweets above it and their own replies
+        below it, up to the first reply by someone else.
+
+        Not paginated: long threads are loaded in full, as one billed call. In the simple
+        format a list of tweets in reading order.
+        """
+        return await self._get(
+            E.tweet_thread(tweet_id, ranking_mode, include_promoted_content), response_format
+        )
 
     async def retweeters(
         self,

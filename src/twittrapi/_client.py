@@ -43,12 +43,14 @@ from .resources import (
     AsyncCommunities,
     AsyncLists,
     AsyncSearch,
+    AsyncSpaces,
     AsyncTrends,
     AsyncTweets,
     AsyncUsers,
     Communities,
     Lists,
     Search,
+    Spaces,
     Trends,
     Tweets,
     Users,
@@ -185,6 +187,7 @@ class TwittrAPI(_ClientMixin):
     search: Search
     lists: Lists
     communities: Communities
+    spaces: Spaces
     trends: Trends
     account: Account
 
@@ -219,6 +222,7 @@ class TwittrAPI(_ClientMixin):
         self.search = Search(self)
         self.lists = Lists(self)
         self.communities = Communities(self)
+        self.spaces = Spaces(self)
         self.trends = Trends(self)
         self.account = Account(self)
 
@@ -348,6 +352,7 @@ class AsyncTwittrAPI(_ClientMixin):
     search: AsyncSearch
     lists: AsyncLists
     communities: AsyncCommunities
+    spaces: AsyncSpaces
     trends: AsyncTrends
     account: AsyncAccount
 
@@ -382,6 +387,7 @@ class AsyncTwittrAPI(_ClientMixin):
         self.search = AsyncSearch(self)
         self.lists = AsyncLists(self)
         self.communities = AsyncCommunities(self)
+        self.spaces = AsyncSpaces(self)
         self.trends = AsyncTrends(self)
         self.account = AsyncAccount(self)
 

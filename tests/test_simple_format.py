@@ -122,7 +122,7 @@ async def test_every_async_method_sends_format_simple(
 @pytest.mark.parametrize("client_cls", [TwittrAPI, AsyncTwittrAPI])
 def test_every_method_accepts_response_format(client_cls: Any) -> None:
     client = client_cls(api_key="k")
-    names = ["users", "tweets", "search", "lists", "communities", "trends"]
+    names = ["users", "tweets", "search", "lists", "communities", "spaces", "trends"]
     checked = 0
     for name in names:
         resource = getattr(client, name)
@@ -134,7 +134,7 @@ def test_every_method_accepts_response_format(client_cls: Any) -> None:
             assert param.kind is inspect.Parameter.KEYWORD_ONLY
             assert param.default is None
             checked += 1
-    assert checked == 23
+    assert checked == 30
 
 
 # --- models ----------------------------------------------------------------------
@@ -222,6 +222,32 @@ def test_parse_users_page_and_last_page() -> None:
 
     last = users_page(simple("tweet-tweetid-favorites"))
     assert last.data == [] and last.has_next_page is False and last.next_cursor is None
+
+
+def test_affiliates_replies_and_thread_parse_as_collections(api: MockAPI) -> None:
+    users_body = simple("user-userid-followers")
+    tweets_body = simple("user-userid-tweets")
+    api.replies = [json_response(users_body), json_response(tweets_body), json_response(tweets_body)]
+    client = api.client(response_format="simple")
+
+    affiliates = users_page(client.users.affiliates(username="XDevelopers"))
+    assert [u.id for u in affiliates.data] == ["1000000000000000001", "1000000000000000002"]
+    replies = tweets_page(client.tweets.replies(TID, ranking_mode="Recency"))
+    assert isinstance(replies.data[0], Tweet)
+    thread = tweets_page(client.tweets.thread(TID))
+    assert isinstance(thread.data[0], Tweet)
+    assert [dict(r.url.params)["format"] for r in api.requests] == ["simple"] * 3
+
+
+def test_paginate_replies_simple() -> None:
+    api = MockAPI(
+        json_response({"data": [{"id": "1"}], "nextCursor": "r1", "hasNextPage": True}),
+        json_response({"data": [{"id": "2"}], "nextCursor": None, "hasNextPage": False}),
+    )
+    client = api.client(response_format="simple")
+    pages = list(client.paginate(client.tweets.replies, TID))
+    assert len(pages) == 2
+    assert [r.url.params.get("cursor") for r in api.requests] == [None, "r1"]
 
 
 def test_models_are_lenient() -> None:

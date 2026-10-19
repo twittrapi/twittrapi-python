@@ -122,6 +122,11 @@ client.users.media("12")
 client.users.followers("12", count=100)
 client.users.following(username="jack")
 client.users.verified_followers("12")
+client.users.affiliates(username="XDevelopers")   # accounts affiliated with an organization
+
+# Batch lookups by handle (duplicates dropped, billed one call per handle)
+client.users.friendships_batch("jack", ["elonmusk", "XDevelopers"])  # up to 50 targets
+client.users.about_batch(["jack", "XDevelopers"])                   # "About this account", up to 20
 ```
 
 Passing `user_id` is a little faster than `username`, because the API does not have to look the
@@ -132,6 +137,8 @@ handle up first.
 ```python
 client.tweets.get("1585841080431321088")                         # tweet plus reply thread
 client.tweets.get("1585841080431321088", ranking_mode="Recency")  # Relevance, Recency or Likes
+client.tweets.replies("1585841080431321088", ranking_mode="Likes")  # only the replies, paginated
+client.tweets.thread("1585841080431321088")                         # the author's thread, one call
 client.tweets.retweeters("1585841080431321088")
 client.tweets.quotes("1585841080431321088")
 ```
@@ -172,7 +179,14 @@ client.lists.members("1234567890")
 ```python
 client.communities.search("python")
 client.communities.get("1500000000000000000")
+client.communities.about("1500000000000000000")   # rules, moderators, members preview
 client.communities.tweets("1500000000000000000")
+```
+
+### Spaces
+
+```python
+client.spaces.get("1YqKDqWqdPLsV")   # the ID from x.com/i/spaces/<id>
 ```
 
 ### Trends
@@ -186,7 +200,8 @@ client.trends.locations()     # every location with trends, with its WOEID
 ## Account actions
 
 `client.account` acts as your own X account: post, reply, like, retweet, follow, bookmark, upload
-media, edit your profile, manage lists, communities and drafts, and read or send direct messages.
+media, edit your profile, manage lists, communities, drafts and articles, and read or send direct
+messages.
 
 It needs your X session: the Cookie header of your logged-in account (`auth_token`, `ct0`, and
 `twid` for DMs and likes) and your proxy (`http://user:pass@host:port`). How to get the cookie:
@@ -222,10 +237,12 @@ with one client. `repr()` never shows the cookie, proxy or passcode.
 The full list: `create_tweet`, `reply`, `delete_tweet`, `like` / `unlike`, `retweet` /
 `unretweet`, `pin` / `unpin`, `bookmark` / `unbookmark`, `report`, `scheduled_tweets`,
 `delete_scheduled_tweet`, `follow` / `unfollow`, `mute` / `unmute`, `block` / `unblock`,
-`home_timeline`, `bookmarks`, `likes`, `blocked`, `muted`, `followers_you_know`, `upload_image`,
-`upload_video`, `media_status`, `update_profile`, `update_profile_image`,
-`update_profile_banner`, and the groups `account.lists`, `account.communities`,
-`account.drafts` and `account.dm`. Accounts can be given as `user_id` or `username=`.
+`home_timeline`, `bookmarks`, `bookmark_folders`, `bookmark_folder`, `search_bookmarks`,
+`likes`, `blocked`, `muted`, `followers_you_know`, `upload_image`, `upload_video`,
+`media_status`, `update_profile`, `update_profile_image`, `update_profile_banner`, and the
+groups `account.lists`, `account.communities` (including `memberships`), `account.drafts`,
+`account.articles` and `account.dm`. Accounts can be given as `user_id` or `username=`.
+Bookmark folders and articles need X Premium.
 
 Answers are `{"status_code": ..., "response": "<X's JSON as a string>"}`;
 `twittrapi.unwrap_client_response()` parses `response`. With `response_format="simple"` you get
@@ -233,6 +250,23 @@ the compact format instead.
 
 Actions that change something are not retried after the request may have reached the API, so a
 retry never posts twice. Reads like `bookmarks` retry as usual.
+
+### Articles
+
+Long-form X Articles. Needs X Premium.
+
+```python
+client.account.articles.create(title="Hello", text="First line\nSecond line")  # answer has the ID
+client.account.articles.list()                        # drafts; lifecycle="published" for the others
+client.account.articles.get("1846000000000000000")
+client.account.articles.update("1846000000000000000", title="New title", cover_media_id="1234567890")
+client.account.articles.publish("1846000000000000000", tweet_text="New article")
+client.account.articles.unpublish("1846000000000000000")
+client.account.articles.delete("1846000000000000000")
+```
+
+Content is plain `text` (one paragraph per line) or `content_state`, X's own format as `get`
+returns it; not both.
 
 ### Direct messages
 
@@ -279,7 +313,9 @@ user = User.from_dict(client.users.get_by_username("XDevelopers")["data"])
 ```
 
 Same price, parameters and errors as the raw format; only successful responses change.
-Status routes ignore the option and answer as usual.
+Status routes ignore the option and answer as usual, and so do `spaces.get`,
+`communities.about`, `users.friendships_batch`, `users.about_batch`, the bookmark folder and
+bookmark search reads, `account.communities.memberships` and `account.articles`.
 
 ## Pagination
 

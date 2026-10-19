@@ -25,6 +25,8 @@ DM_SESSION = XSession(COOKIE, PROXY, passcode=PASSCODE)
 AUTH = {"cookie": COOKIE, "proxy": PROXY}
 TID = "1585841080431321088"
 UID = "44196397"
+AID = "1846000000000000000"
+CONTENT_STATE = {"blocks": [{"key": "a1b2c", "text": "Hi", "type": "unstyled"}], "entity_map": []}
 PNG = b"\x89PNG\r\n\x1a\n-image-bytes"
 PNG_B64 = base64.b64encode(PNG).decode()
 
@@ -113,6 +115,16 @@ CASES = [
     (lambda a: a.followers_you_know(UID, count=10), "/client/followers-you-know", {"user_id": UID, "count": 10}),
     (lambda a: a.followers_you_know(username="jack", cursor="f"), "/client/followers-you-know",
      {"username": "jack", "cursor": "f"}),
+    # bookmark folders and bookmark search
+    (lambda a: a.bookmark_folders(), "/client/bookmarks/folders", {}),
+    (lambda a: a.bookmark_folders(cursor="bf"), "/client/bookmarks/folders", {"cursor": "bf"}),
+    (lambda a: a.bookmark_folder(1700000000000000000), "/client/bookmarks/folder",
+     {"folder_id": "1700000000000000000"}),
+    (lambda a: a.bookmark_folder("17", cursor="c"), "/client/bookmarks/folder", {"folder_id": "17", "cursor": "c"}),
+    (lambda a: a.search_bookmarks("python"), "/client/bookmarks/search", {"query": "python"}),
+    (lambda a: a.search_bookmarks("from:jack", count=100, cursor="s"), "/client/bookmarks/search",
+     {"query": "from:jack", "count": 100, "cursor": "s"}),
+    (lambda a: a.search_bookmarks("é" * 500), "/client/bookmarks/search", {"query": "é" * 500}),
     # media
     (lambda a: a.upload_image(PNG), "/client/media", {"media": PNG_B64}),
     (lambda a: a.upload_image(PNG_B64, media_type="image/png"), "/client/media",
@@ -157,6 +169,8 @@ CASES = [
      {"community_id": "1500", "name": "API testers"}),
     (lambda a: a.communities.join("1500"), "/client/communities/join", {"community_id": "1500"}),
     (lambda a: a.communities.leave("1500"), "/client/communities/leave", {"community_id": "1500"}),
+    (lambda a: a.communities.memberships(), "/client/communities/memberships", {}),
+    (lambda a: a.communities.memberships(cursor="cm"), "/client/communities/memberships", {"cursor": "cm"}),
     # drafts
     (lambda a: a.drafts.list(), "/client/drafts", {}),
     (lambda a: a.drafts.list(ascending=True), "/client/drafts", {"ascending": True}),
@@ -165,6 +179,38 @@ CASES = [
     (lambda a: a.drafts.edit("99", "Edited", media_ids=["7"]), "/client/drafts/edit",
      {"draft_tweet_id": "99", "text": "Edited", "media_ids": ["7"]}),
     (lambda a: a.drafts.delete(99), "/client/drafts/delete", {"draft_tweet_id": "99"}),
+    # articles
+    (lambda a: a.articles.list(), "/client/articles", {}),
+    (lambda a: a.articles.list(lifecycle="published", count=50, cursor="ac", user_id=12), "/client/articles",
+     {"lifecycle": "published", "count": 50, "cursor": "ac", "user_id": "12"}),
+    (lambda a: a.articles.list(lifecycle="Draft"), "/client/articles", {"lifecycle": "Draft"}),
+    (lambda a: a.articles.get(int(AID)), "/client/articles/get", {"article_id": AID}),
+    (lambda a: a.articles.create(), "/client/articles/create", {}),
+    (lambda a: a.articles.create(title="Title", text="One\nTwo"), "/client/articles/create",
+     {"title": "Title", "text": "One\nTwo"}),
+    (lambda a: a.articles.create(title="", content_state=CONTENT_STATE), "/client/articles/create",
+     {"title": "", "content_state": CONTENT_STATE}),
+    (lambda a: a.articles.update(AID, title="New"), "/client/articles/update", {"article_id": AID, "title": "New"}),
+    (lambda a: a.articles.update(AID, text=""), "/client/articles/update", {"article_id": AID, "text": ""}),
+    (lambda a: a.articles.update(AID, content_state=CONTENT_STATE), "/client/articles/update",
+     {"article_id": AID, "content_state": CONTENT_STATE}),
+    (lambda a: a.articles.update(AID, cover_media_id=1234567890), "/client/articles/update",
+     {"article_id": AID, "cover_media_id": "1234567890"}),
+    (lambda a: a.articles.update(AID, title="T", cover_media_id="55", cover_media_category="AmplifyVideo"),
+     "/client/articles/update",
+     {"article_id": AID, "title": "T", "cover_media_id": "55", "cover_media_category": "AmplifyVideo"}),
+    (lambda a: a.articles.update(AID, remove_cover=True), "/client/articles/update",
+     {"article_id": AID, "remove_cover": True}),
+    (lambda a: a.articles.update(AID, title="T", remove_cover=False), "/client/articles/update",
+     {"article_id": AID, "title": "T"}),
+    (lambda a: a.articles.publish(AID), "/client/articles/publish", {"article_id": AID}),
+    (lambda a: a.articles.publish(AID, visibility="subscribers", reply_control="verified", tweet_text="Read it"),
+     "/client/articles/publish",
+     {"article_id": AID, "visibility": "subscribers", "reply_control": "verified", "tweet_text": "Read it"}),
+    (lambda a: a.articles.publish(AID, tweet_text="x" * 256), "/client/articles/publish",
+     {"article_id": AID, "tweet_text": "x" * 256}),
+    (lambda a: a.articles.unpublish(AID), "/client/articles/unpublish", {"article_id": AID}),
+    (lambda a: a.articles.delete(int(AID)), "/client/articles/delete", {"article_id": AID}),
     # direct messages (passcode from the call; DM_CASES below use the session's)
     (lambda a: a.dm.inbox(), "/client/dm/inbox", {}),
     (lambda a: a.dm.inbox(count=50, passcode="1234"), "/client/dm/inbox", {"count": 50, "passcode": "1234"}),
@@ -250,7 +296,10 @@ def test_every_route_is_covered() -> None:
         "/client/blocked", "/client/muted", "/client/followers-you-know", "/client/dm/inbox",
         "/client/dm/conversation", "/client/dm/conversation/info",
         "/client/dm/conversation/disappearing", "/client/dm/send", "/client/dm/settings",
-        "/client/dm/settings/update",
+        "/client/dm/settings/update", "/client/bookmarks/folders", "/client/bookmarks/folder",
+        "/client/bookmarks/search", "/client/communities/memberships", "/client/articles",
+        "/client/articles/get", "/client/articles/create", "/client/articles/update",
+        "/client/articles/publish", "/client/articles/unpublish", "/client/articles/delete",
     }
     assert _all_paths() == expected
 
@@ -442,6 +491,41 @@ def test_validation_errors_do_not_echo_secrets(api: MockAPI) -> None:
         (lambda a: a.dm.set_disappearing(31536001, user_id=12, passcode="1"), ValueError),
         (lambda a: a.dm.update_settings(), ValueError),
         (lambda a: a.dm.update_settings(av_calls_enabled="no"), TypeError),
+        # bookmark folders and bookmark search
+        (lambda a: a.bookmark_folder("abc"), ValueError),
+        (lambda a: a.bookmark_folder(None), ValueError),
+        (lambda a: a.search_bookmarks(""), ValueError),
+        (lambda a: a.search_bookmarks("  "), ValueError),
+        (lambda a: a.search_bookmarks("x" * 501), ValueError),
+        (lambda a: a.search_bookmarks("x", count=0), ValueError),
+        (lambda a: a.search_bookmarks("x", count=101), ValueError),
+        # articles
+        (lambda a: a.articles.list(lifecycle="archived"), ValueError),
+        (lambda a: a.articles.list(count=101), ValueError),
+        (lambda a: a.articles.list(user_id="jack"), ValueError),
+        (lambda a: a.articles.get("abc"), ValueError),
+        (lambda a: a.articles.get(True), TypeError),
+        (lambda a: a.articles.create(text="x", content_state=CONTENT_STATE), ValueError),
+        (lambda a: a.articles.create(title=5), TypeError),
+        (lambda a: a.articles.create(content_state="blocks"), TypeError),
+        (lambda a: a.articles.create(content_state={"entity_map": []}), ValueError),
+        (lambda a: a.articles.create(content_state={"blocks": [], "entity_map": {}}), ValueError),
+        (lambda a: a.articles.update(AID), ValueError),
+        (lambda a: a.articles.update(AID, remove_cover=False), ValueError),
+        (lambda a: a.articles.update("abc", title="T"), ValueError),
+        (lambda a: a.articles.update(AID, text="x", content_state=CONTENT_STATE), ValueError),
+        (lambda a: a.articles.update(AID, cover_media_id="abc"), ValueError),
+        (lambda a: a.articles.update(AID, cover_media_id="55", remove_cover=True), ValueError),
+        (lambda a: a.articles.update(AID, cover_media_id="55", cover_media_category="Photo"), ValueError),
+        (lambda a: a.articles.update(AID, title="T", cover_media_category="AmplifyVideo"), ValueError),
+        (lambda a: a.articles.update(AID, remove_cover="yes"), TypeError),
+        (lambda a: a.articles.publish("abc"), ValueError),
+        (lambda a: a.articles.publish(AID, visibility="private"), ValueError),
+        (lambda a: a.articles.publish(AID, reply_control="nobody"), ValueError),
+        (lambda a: a.articles.publish(AID, tweet_text="x" * 257), ValueError),
+        (lambda a: a.articles.publish(AID, tweet_text=1), TypeError),
+        (lambda a: a.articles.unpublish("abc"), ValueError),
+        (lambda a: a.articles.delete(""), ValueError),
     ],
 )
 def test_client_side_validation(api: MockAPI, call: Callable[[Any], Any], exc: type) -> None:
@@ -504,6 +588,55 @@ def test_reads_keep_normal_retries() -> None:
     assert len(api.requests) == 3
 
 
+ARTICLE_WRITES = [
+    lambda a: a.articles.create(title="T"),
+    lambda a: a.articles.update(AID, title="T"),
+    lambda a: a.articles.publish(AID),
+    lambda a: a.articles.unpublish(AID),
+    lambda a: a.articles.delete(AID),
+]
+
+NEW_READS = [
+    lambda a: a.bookmark_folders(),
+    lambda a: a.bookmark_folder("17"),
+    lambda a: a.search_bookmarks("python"),
+    lambda a: a.communities.memberships(),
+    lambda a: a.articles.list(),
+    lambda a: a.articles.get(AID),
+]
+
+
+@pytest.mark.parametrize("call", ARTICLE_WRITES)
+def test_article_writes_are_not_retried(call: Callable[[Any], Any]) -> None:
+    for first, exc in ((json_response({"error": "boom"}, 500), ServerError), (httpx.ReadTimeout("slow"), APITimeoutError)):
+        api = MockAPI(first, json_response({"ok": True}))
+        with pytest.raises(exc):
+            call(api.client(session=SESSION).account)
+        assert len(api.requests) == 1
+
+
+@pytest.mark.parametrize("call", ARTICLE_WRITES)
+async def test_async_article_writes_are_not_retried(call: Callable[[Any], Any]) -> None:
+    api = MockAPI(json_response({"error": "boom"}, 503), json_response({"ok": True}))
+    with pytest.raises(ServerError):
+        await call(api.async_client(session=SESSION).account)
+    assert len(api.requests) == 1
+
+
+@pytest.mark.parametrize("call", ARTICLE_WRITES)
+def test_article_writes_are_retried_on_429_and_connect_errors(call: Callable[[Any], Any]) -> None:
+    api = MockAPI(json_response({"error": "slow down"}, 429), httpx.ConnectError("refused"), json_response({"ok": True}))
+    assert call(api.client(session=SESSION).account) == {"ok": True}
+    assert len(api.requests) == 3
+
+
+@pytest.mark.parametrize("call", NEW_READS)
+def test_new_reads_keep_normal_retries(call: Callable[[Any], Any]) -> None:
+    api = MockAPI(json_response({"error": "boom"}, 500), httpx.ReadTimeout("slow"), json_response({"ok": True}))
+    assert call(api.client(session=SESSION).account) == {"ok": True}
+    assert len(api.requests) == 3
+
+
 # Pagination ---------------------------------------------------------------------------
 
 
@@ -525,6 +658,16 @@ def test_paginate_bookmarks_reads_wrapped_response() -> None:
     bodies = [json.loads(r.content) for r in api.requests]
     assert [b.get("cursor") for b in bodies] == [None, "c1"]
     assert all(b["count"] == 50 and b["cookie"] == COOKIE for b in bodies)
+
+
+def test_paginate_bookmark_folder_sends_cursor_in_body() -> None:
+    api = MockAPI(json_response(_wrapped("f1")), json_response(_wrapped()))
+    client = api.client(session=SESSION)
+    pages = list(client.paginate(client.account.bookmark_folder, "17"))
+    assert len(pages) == 2
+    bodies = [json.loads(r.content) for r in api.requests]
+    assert [b.get("cursor") for b in bodies] == [None, "f1"]
+    assert all(b["folder_id"] == "17" for b in bodies)
 
 
 def test_paginate_dm_conversation_follows_has_more() -> None:
@@ -559,7 +702,9 @@ def _public_methods(obj: Any) -> Dict[str, Any]:
     }
 
 
-@pytest.mark.parametrize("path", ["account", "account.lists", "account.communities", "account.drafts", "account.dm"])
+@pytest.mark.parametrize(
+    "path", ["account", "account.lists", "account.communities", "account.drafts", "account.articles", "account.dm"]
+)
 def test_async_parity(path: str) -> None:
     def resolve(client: Any) -> Any:
         for part in path.split("."):
@@ -584,15 +729,28 @@ def test_expected_method_names() -> None:
         "delete_scheduled_tweet", "follow", "unfollow", "mute", "unmute", "block", "unblock",
         "home_timeline", "bookmarks", "likes", "blocked", "muted", "followers_you_know",
         "upload_image", "upload_video", "media_status", "update_profile",
-        "update_profile_image", "update_profile_banner",
+        "update_profile_image", "update_profile_banner", "bookmark_folders", "bookmark_folder",
+        "search_bookmarks",
     }
     assert set(_public_methods(a.lists)) == {"create", "update", "delete", "add_member", "remove_member"}
-    assert set(_public_methods(a.communities)) == {"create", "delete", "join", "leave"}
+    assert set(_public_methods(a.communities)) == {"create", "delete", "join", "leave", "memberships"}
     assert set(_public_methods(a.drafts)) == {"list", "create", "edit", "delete"}
+    assert set(_public_methods(a.articles)) == {
+        "list", "get", "create", "update", "publish", "unpublish", "delete",
+    }
     assert set(_public_methods(a.dm)) == {
         "inbox", "conversation", "conversation_info", "set_disappearing", "send", "settings",
         "update_settings",
     }
+
+
+def test_premium_is_documented() -> None:
+    for client in (TwittrAPI(api_key="k"), AsyncTwittrAPI(api_key="k")):
+        a = client.account
+        methods = [a.bookmark_folders, a.bookmark_folder] + list(_public_methods(a.articles).values())
+        assert len(methods) == 9
+        for method in methods:
+            assert "Needs X Premium" in (method.__doc__ or ""), method.__name__
 
 
 def test_error_is_twittrapi_error_subclass_for_api_errors() -> None:

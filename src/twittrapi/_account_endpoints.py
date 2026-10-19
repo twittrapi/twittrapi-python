@@ -36,6 +36,19 @@ ReportReason = Literal[
     "CivicIntegritySimpleOption",
 ]
 
+ArticleLifecycle = Literal["draft", "published"]
+"""Which of your articles to list: drafts (the default) or published ones."""
+
+ArticleVisibility = Literal["public", "subscribers"]
+"""Who can read a published article: everyone (the default) or only your subscribers."""
+
+ArticleReplyControl = Literal["all", "community", "verified", "byinvitation"]
+"""Who can reply to a published article's post: everyone (the default), your community,
+verified accounts, or only accounts you mention."""
+
+ArticleCoverCategory = Literal["DraftTweetImage", "DraftTweetGif", "AmplifyVideo"]
+"""The kind of media used as an article cover: image (the default), GIF or video."""
+
 REPLY_SETTINGS = ("only_follows", "only_verified", "only_mentioned")
 REPORT_REASONS = (
     "SpamSimpleOption",
@@ -52,7 +65,14 @@ REPORT_REASONS = (
     "CivicIntegritySimpleOption",
 )
 
+ARTICLE_LIFECYCLES = ("draft", "published")
+ARTICLE_VISIBILITIES = ("public", "subscribers")
+ARTICLE_REPLY_CONTROLS = ("all", "community", "verified", "byinvitation")
+ARTICLE_COVER_CATEGORIES = ("DraftTweetImage", "DraftTweetGif", "AmplifyVideo")
+
 MAX_MEDIA_IDS = 4
+BOOKMARK_SEARCH_MAX_LENGTH = 500
+ARTICLE_TWEET_TEXT_MAX_LENGTH = 256
 POLL_MIN_CHOICES = 2
 POLL_MAX_CHOICES = 4
 POLL_MIN_MINUTES = 5
@@ -143,6 +163,23 @@ def _text(value: Optional[str], name: str) -> Optional[str]:
 def _choice(value: Optional[str], name: str, choices: Sequence[str]) -> Optional[str]:
     if value is not None and value not in choices:
         raise ValueError(f"{name} must be one of {', '.join(choices)}; got {value!r}")
+    return value
+
+
+def _choice_ci(value: Optional[str], name: str, choices: Sequence[str]) -> Optional[str]:
+    """Like :func:`_choice`, but case-insensitive (the API accepts any case). Sent as given."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or value.lower() not in {c.lower() for c in choices}:
+        raise ValueError(f"{name} must be one of {', '.join(choices)}; got {value!r}")
+    return value
+
+
+def _max_length(value: Optional[str], name: str, limit: int) -> Optional[str]:
+    """An optional string of at most ``limit`` characters (Unicode code points)."""
+    _text(value, name)
+    if value is not None and len(value) > limit:
+        raise ValueError(f"{name} is too long ({len(value)} characters, maximum {limit})")
     return value
 
 
@@ -383,6 +420,35 @@ def followers_you_know(
     return _read("/client/followers-you-know", session, fields)
 
 
+# Bookmark folders and bookmark search ------------------------------------
+
+
+def bookmark_folders(session: XSession, cursor: Optional[str]) -> EndpointRequest:
+    return _read("/client/bookmarks/folders", session, {"cursor": cursor or None})
+
+
+def bookmark_folder(session: XSession, folder_id: ID, cursor: Optional[str]) -> EndpointRequest:
+    return _read(
+        "/client/bookmarks/folder",
+        session,
+        {"folder_id": _numeric_id(folder_id, "folder_id"), "cursor": cursor or None},
+    )
+
+
+def search_bookmarks(
+    session: XSession, query: str, count: Optional[int], cursor: Optional[str]
+) -> EndpointRequest:
+    _required_text(query, "query")
+    if len(query.strip()) > BOOKMARK_SEARCH_MAX_LENGTH:
+        raise ValueError(
+            f"query is too long ({len(query.strip())} characters, "
+            f"maximum {BOOKMARK_SEARCH_MAX_LENGTH})"
+        )
+    fields: Dict[str, Any] = {"query": query}
+    fields.update(_page(count, cursor))
+    return _read("/client/bookmarks/search", session, fields)
+
+
 # Media ---------------------------------------------------------------------
 
 
@@ -564,6 +630,10 @@ def community_membership(op: str, session: XSession, community_id: ID) -> Endpoi
     )
 
 
+def community_memberships(session: XSession, cursor: Optional[str]) -> EndpointRequest:
+    return _read("/client/communities/memberships", session, {"cursor": cursor or None})
+
+
 # Drafts --------------------------------------------------------------------
 
 
@@ -595,6 +665,123 @@ def draft_edit(
 def draft_delete(session: XSession, draft_id: ID) -> EndpointRequest:
     return _post(
         "/client/drafts/delete", session, {"draft_tweet_id": _numeric_id(draft_id, "draft_id")}
+    )
+
+
+# Articles ------------------------------------------------------------------
+
+
+def articles(
+    session: XSession,
+    lifecycle: Optional[str],
+    count: Optional[int],
+    cursor: Optional[str],
+    user_id: Optional[ID],
+) -> EndpointRequest:
+    fields: Dict[str, Any] = {"lifecycle": _choice_ci(lifecycle, "lifecycle", ARTICLE_LIFECYCLES)}
+    fields.update(_page(count, cursor))
+    if user_id is not None and user_id != "":
+        fields["user_id"] = _numeric_id(user_id, "user_id")
+    return _read("/client/articles", session, fields)
+
+
+def article_get(session: XSession, article_id: ID) -> EndpointRequest:
+    return _read(
+        "/client/articles/get", session, {"article_id": _numeric_id(article_id, "article_id")}
+    )
+
+
+def _content_state(value: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise TypeError('content_state must be a dict {"blocks": [...], "entity_map": [...]}')
+    if not isinstance(value.get("blocks"), list):
+        raise ValueError('content_state needs "blocks" (a list)')
+    if "entity_map" in value and not isinstance(value["entity_map"], list):
+        raise ValueError('content_state "entity_map" must be a list')
+    return dict(value)
+
+
+def _article_content(
+    title: Optional[str], text: Optional[str], content_state: Optional[Mapping[str, Any]]
+) -> Dict[str, Any]:
+    if text is not None and content_state is not None:
+        raise ValueError("Pass text or content_state, not both.")
+    return {
+        "title": _text(title, "title"),
+        "text": _text(text, "text"),
+        "content_state": _content_state(content_state),
+    }
+
+
+def article_create(
+    session: XSession,
+    title: Optional[str],
+    text: Optional[str],
+    content_state: Optional[Mapping[str, Any]],
+) -> EndpointRequest:
+    return _post("/client/articles/create", session, _article_content(title, text, content_state))
+
+
+def article_update(
+    session: XSession,
+    article_id: ID,
+    *,
+    title: Optional[str],
+    text: Optional[str],
+    content_state: Optional[Mapping[str, Any]],
+    cover_media_id: Optional[ID],
+    cover_media_category: Optional[str],
+    remove_cover: bool,
+) -> EndpointRequest:
+    fields: Dict[str, Any] = {"article_id": _numeric_id(article_id, "article_id")}
+    fields.update(_article_content(title, text, content_state))
+    _bool(remove_cover, "remove_cover")
+    if cover_media_id is not None and remove_cover:
+        raise ValueError("Pass cover_media_id or remove_cover=True, not both.")
+    if cover_media_category is not None and cover_media_id is None:
+        raise ValueError("cover_media_category needs cover_media_id")
+    if cover_media_id is not None:
+        fields["cover_media_id"] = _numeric_id(cover_media_id, "cover_media_id")
+        fields["cover_media_category"] = _choice_ci(
+            cover_media_category, "cover_media_category", ARTICLE_COVER_CATEGORIES
+        )
+    if remove_cover:
+        fields["remove_cover"] = True
+    if all(fields[k] is None for k in ("title", "text", "content_state")) and not (
+        cover_media_id is not None or remove_cover
+    ):
+        raise ValueError(
+            "Pass at least one of title, text, content_state, cover_media_id or "
+            "remove_cover=True."
+        )
+    return _post("/client/articles/update", session, fields)
+
+
+def article_publish(
+    session: XSession,
+    article_id: ID,
+    visibility: Optional[str],
+    reply_control: Optional[str],
+    tweet_text: Optional[str],
+) -> EndpointRequest:
+    return _post(
+        "/client/articles/publish",
+        session,
+        {
+            "article_id": _numeric_id(article_id, "article_id"),
+            "visibility": _choice_ci(visibility, "visibility", ARTICLE_VISIBILITIES),
+            "reply_control": _choice_ci(reply_control, "reply_control", ARTICLE_REPLY_CONTROLS),
+            "tweet_text": _max_length(tweet_text, "tweet_text", ARTICLE_TWEET_TEXT_MAX_LENGTH),
+        },
+    )
+
+
+def article_action(op: str, session: XSession, article_id: ID) -> EndpointRequest:
+    """``op`` is "unpublish" or "delete"."""
+    return _post(
+        f"/client/articles/{op}", session, {"article_id": _numeric_id(article_id, "article_id")}
     )
 
 

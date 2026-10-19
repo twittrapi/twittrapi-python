@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-10-19
+
+### Added
+
+- `client.spaces.get(space_id)`: an X Space (raw format only).
+- `communities.about(community_id)`: a community's About page (description, rules, creation
+  date, moderators, members preview; raw format only).
+- `users.affiliates(user_id | username=)`: accounts affiliated with an organization.
+  Paginated; a list of users in the simple format.
+- `tweets.replies(tweet_id, ranking_mode=, include_promoted_content=, cursor=)`: only the
+  replies to a tweet. Paginated; a list of tweets in the simple format.
+- `tweets.thread(tweet_id, ranking_mode=, include_promoted_content=)`: the author's own
+  thread around a tweet, in reading order, in one call; a list of tweets in the simple format.
+- `users.friendships_batch(source, targets)`: relationships of one account with up to 50
+  others, and `users.about_batch(usernames)`: "About this account" for up to 20 handles. `@`
+  is optional, duplicates are dropped (case-insensitive), billed one call per distinct handle.
+  Raw format only.
+- Account reads: `account.bookmark_folders()` and `account.bookmark_folder(folder_id)` (need
+  X Premium), `account.search_bookmarks(query)` and `account.communities.memberships()`.
+- `account.articles` (needs X Premium): `list`, `get`, `create`, `update`, `publish`,
+  `unpublish` and `delete` your X Articles. The writes are not retried after the request may
+  have reached the API, like the other account actions. Types `ArticleLifecycle`,
+  `ArticleVisibility`, `ArticleReplyControl` and `ArticleCoverCategory` are exported from
+  `twittrapi`.
+- Invalid arguments to the new methods (bad IDs or handles, too many handles, `text` together
+  with `content_state`, an empty article update, ...) raise `ValueError` or `TypeError`
+  before any request is sent.
+
 ## [1.1.0] - 2026-10-16
 
 ### Added
@@ -106,6 +134,8 @@ First stable release: the API is stable and follows semantic versioning.
 - `paginate()` and `extract_bottom_cursor()` for following X's timeline cursors (best-effort).
 - `py.typed` marker.
 
+[1.2.0]: https://github.com/twittrapi/twittrapi-python/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/twittrapi/twittrapi-python/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/twittrapi/twittrapi-python/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/twittrapi/twittrapi-python/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/twittrapi/twittrapi-python/compare/v0.2.0...v0.2.1

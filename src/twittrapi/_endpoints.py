@@ -4,7 +4,8 @@ Each function validates its arguments and returns an :class:`EndpointRequest` (p
 parameters). The sync and async resource classes both call these, so the mapping from Python
 arguments to the HTTP request lives in one place.
 
-All endpoints here return X's raw GraphQL JSON. They are GET requests, except tweet likers, which
+The endpoints here return X's raw GraphQL JSON (the batch lookups answer a small JSON object
+built by the API around X's items). They are GET requests, except tweet likers, which
 is a POST with the author's cookie and a proxy in a JSON body. The account actions
 (``/client/...``, POST with the session in the body) are in :mod:`._account_endpoints`.
 """
@@ -13,7 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Union
 from urllib.parse import quote
 
 ID = Union[str, int]
@@ -21,8 +22,12 @@ QueryValue = Union[str, int]
 
 _NUMERIC = re.compile(r"^\d{1,30}$")
 _WOEID = re.compile(r"^\d{1,12}$")
+_SPACE_ID = re.compile(r"^[A-Za-z0-9]{1,32}$")
+_HANDLE = re.compile(r"^[A-Za-z0-9_]{1,15}$")
 
 MAX_USERS_PER_LOOKUP = 500
+MAX_FRIENDSHIP_TARGETS = 50
+MAX_ABOUT_USERNAMES = 20
 # X treats count as a hint (pages can be larger or smaller); TwittrAPI accepts 1..100.
 MAX_COUNT = 100
 SEARCH_CATEGORIES = ("Top", "Latest", "People", "Photos", "Videos")
@@ -65,6 +70,49 @@ def _username(value: str) -> str:
     if not text:
         raise ValueError("username must not be empty")
     return text
+
+
+def _handle(value: str, name: str) -> str:
+    """A handle as X allows it: 1 to 15 letters, digits or underscores (``@`` optional)."""
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string, got {type(value).__name__}")
+    text = value.strip()
+    if text.startswith("@"):
+        text = text[1:].strip()
+    if not _HANDLE.match(text):
+        raise ValueError(
+            f"{name} must be a username of 1 to 15 letters, digits or underscores, got {value!r}"
+        )
+    return text
+
+
+def _handles(values: Iterable[str], name: str, limit: int) -> str:
+    """A list of handles as a comma-separated string: ``@`` stripped, duplicates dropped
+    (case-insensitive, first spelling kept), at most ``limit`` after that."""
+    if isinstance(values, (str, bytes)):
+        raise TypeError(f"{name} must be a list of usernames, not a single string")
+    seen: Set[str] = set()
+    out: List[str] = []
+    for value in values:
+        handle = _handle(value, f"each username in {name}")
+        if handle.lower() not in seen:
+            seen.add(handle.lower())
+            out.append(handle)
+    if not out:
+        raise ValueError(f"{name} must contain at least one username")
+    if len(out) > limit:
+        raise ValueError(
+            f"{name} accepts at most {limit} different usernames per call, got {len(out)}"
+        )
+    return ",".join(out)
+
+
+def _bool_param(value: Optional[bool], name: str) -> Optional[str]:
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be True or False, got {type(value).__name__}")
+    return "true" if value else "false"
 
 
 def _non_empty(value: str, name: str) -> str:
@@ -148,6 +196,22 @@ def users_by_ids(user_ids: Iterable[ID]) -> EndpointRequest:
     return EndpointRequest("/user/users/by/ids", {"ids": ",".join(ids)})
 
 
+def friendships_batch(source: str, targets: Iterable[str]) -> EndpointRequest:
+    return EndpointRequest(
+        "/user/friendships/batch",
+        {
+            "source_screen_name": _handle(source, "source"),
+            "target_screen_names": _handles(targets, "targets", MAX_FRIENDSHIP_TARGETS),
+        },
+    )
+
+
+def about_batch(usernames: Iterable[str]) -> EndpointRequest:
+    return EndpointRequest(
+        "/user/about/batch", {"usernames": _handles(usernames, "usernames", MAX_ABOUT_USERNAMES)}
+    )
+
+
 USER_TIMELINES = {
     "tweets": "tweets",
     "tweets_and_replies": "tweetsAndReplies",
@@ -155,6 +219,7 @@ USER_TIMELINES = {
     "followers": "followers",
     "following": "followings",
     "verified_followers": "verifiedFollowers",
+    "affiliates": "affiliates",
 }
 
 
@@ -180,6 +245,40 @@ def tweet(tweet_id: ID, ranking_mode: Optional[str], cursor: Optional[str]) -> E
     if cursor:
         params["cursor"] = cursor
     return EndpointRequest(f"/tweet/{_numeric_id(tweet_id, 'tweet_id')}", params)
+
+
+def _conversation(
+    suffix: str,
+    tweet_id: ID,
+    ranking_mode: Optional[str],
+    include_promoted_content: Optional[bool],
+    cursor: Optional[str],
+) -> EndpointRequest:
+    params: Dict[str, QueryValue] = {}
+    mode = _choice(ranking_mode, "ranking_mode", RANKING_MODES)
+    if mode:
+        params["rankingMode"] = mode
+    promoted = _bool_param(include_promoted_content, "include_promoted_content")
+    if promoted is not None:
+        params["includePromotedContent"] = promoted
+    if cursor:
+        params["cursor"] = cursor
+    return EndpointRequest(f"/tweet/{_numeric_id(tweet_id, 'tweet_id')}/{suffix}", params)
+
+
+def tweet_replies(
+    tweet_id: ID,
+    ranking_mode: Optional[str],
+    include_promoted_content: Optional[bool],
+    cursor: Optional[str],
+) -> EndpointRequest:
+    return _conversation("replies", tweet_id, ranking_mode, include_promoted_content, cursor)
+
+
+def tweet_thread(
+    tweet_id: ID, ranking_mode: Optional[str], include_promoted_content: Optional[bool]
+) -> EndpointRequest:
+    return _conversation("thread", tweet_id, ranking_mode, include_promoted_content, None)
 
 
 def _tweet_sub(
@@ -252,6 +351,10 @@ def community(community_id: ID) -> EndpointRequest:
     return EndpointRequest(f"/communities/{_numeric_id(community_id, 'community_id')}")
 
 
+def community_about(community_id: ID) -> EndpointRequest:
+    return EndpointRequest(f"/communities/{_numeric_id(community_id, 'community_id')}/about")
+
+
 def community_tweets(
     community_id: ID, count: Optional[int], cursor: Optional[str]
 ) -> EndpointRequest:
@@ -265,6 +368,21 @@ def community_search(query: str, count: Optional[int], cursor: Optional[str]) ->
     return EndpointRequest(
         f"/communities/search/{_seg(_non_empty(query, 'query'))}", _paging(count, cursor)
     )
+
+
+# Spaces --------------------------------------------------------------------
+
+
+def space(space_id: str) -> EndpointRequest:
+    if not isinstance(space_id, str):
+        raise TypeError(f"space_id must be a string, got {type(space_id).__name__}")
+    text = space_id.strip()
+    if not _SPACE_ID.match(text):
+        raise ValueError(
+            f"space_id must be 1 to 32 letters and digits (as in x.com/i/spaces/<id>), "
+            f"got {space_id!r}"
+        )
+    return EndpointRequest(f"/spaces/{text}")
 
 
 # Trends --------------------------------------------------------------------

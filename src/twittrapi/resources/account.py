@@ -10,10 +10,19 @@ The async classes are generated from the sync ones (same methods and signatures)
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Union
 
 from .. import _account_endpoints as A
-from .._account_endpoints import Birthdate, Media, ReplySettings, ReportReason
+from .._account_endpoints import (
+    ArticleCoverCategory,
+    ArticleLifecycle,
+    ArticleReplyControl,
+    ArticleVisibility,
+    Birthdate,
+    Media,
+    ReplySettings,
+    ReportReason,
+)
 from .._base import ResponseFormat
 from .._endpoints import ID
 from .._session import XSession
@@ -27,11 +36,13 @@ __all__ = [
     "AccountLists",
     "AccountCommunities",
     "AccountDrafts",
+    "AccountArticles",
     "AccountDM",
     "AsyncAccount",
     "AsyncAccountLists",
     "AsyncAccountCommunities",
     "AsyncAccountDrafts",
+    "AsyncAccountArticles",
     "AsyncAccountDM",
 ]
 
@@ -114,7 +125,8 @@ class AccountLists(SyncResource):
 
 
 class AccountCommunities(SyncResource):
-    """Create, delete, join and leave communities. ``client.account.communities``."""
+    """Create, delete, join and leave communities, and list the ones you belong to.
+    ``client.account.communities``."""
 
     def create(
         self,
@@ -179,6 +191,18 @@ class AccountCommunities(SyncResource):
             response_format,
         )
 
+    def memberships(
+        self,
+        *,
+        cursor: Optional[str] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Communities your account belongs to. Paginated."""
+        return self._post(
+            A.community_memberships(self._session(session), cursor), response_format
+        )
+
 
 class AccountDrafts(SyncResource):
     """Your unsent tweet drafts. ``client.account.drafts``."""
@@ -229,6 +253,150 @@ class AccountDrafts(SyncResource):
     ) -> Any:
         """Delete a draft."""
         return self._post(A.draft_delete(self._session(session), draft_id), response_format)
+
+
+class AccountArticles(SyncResource):
+    """Your long-form X Articles: list, read, write, publish and delete them.
+    ``client.account.articles``.
+
+    Needs X Premium: X offers Articles only to Premium accounts. Content is either plain
+    ``text`` (one paragraph per line) or ``content_state``, X's own format
+    (``{"blocks": [...], "entity_map": [...]}``, as :meth:`get` returns it).
+    """
+
+    def list(
+        self,
+        *,
+        lifecycle: Optional[ArticleLifecycle] = None,
+        count: Optional[int] = None,
+        cursor: Optional[str] = None,
+        user_id: Optional[ID] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Your articles: ``lifecycle="draft"`` (default) or ``"published"``. Paginated.
+        Needs X Premium.
+
+        Reads the session's account (from ``twid`` in the cookie); pass your own numeric
+        ``user_id`` only if the cookie has no ``twid``.
+        """
+        return self._post(
+            A.articles(self._session(session), lifecycle, count, cursor, user_id),
+            response_format,
+        )
+
+    def get(
+        self,
+        article_id: ID,
+        *,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """One of your articles: title, ``content_state``, cover, state and metadata.
+        Needs X Premium."""
+        return self._post(A.article_get(self._session(session), article_id), response_format)
+
+    def create(
+        self,
+        *,
+        title: Optional[str] = None,
+        text: Optional[str] = None,
+        content_state: Optional[Mapping[str, Any]] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Create a draft article. Needs X Premium.
+
+        Everything is optional (without it the draft starts empty). Pass ``text`` or
+        ``content_state``, not both. The answer holds the new draft and its ID.
+        """
+        return self._post(
+            A.article_create(self._session(session), title, text, content_state),
+            response_format,
+        )
+
+    def update(
+        self,
+        article_id: ID,
+        *,
+        title: Optional[str] = None,
+        text: Optional[str] = None,
+        content_state: Optional[Mapping[str, Any]] = None,
+        cover_media_id: Optional[ID] = None,
+        cover_media_category: Optional[ArticleCoverCategory] = None,
+        remove_cover: bool = False,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Change an article's title, content or cover. Needs X Premium.
+
+        ``text`` or ``content_state`` (not both) replaces the whole content.
+        ``cover_media_id`` comes from :meth:`Account.upload_image` or
+        :meth:`Account.upload_video`; ``cover_media_category`` is ``"DraftTweetImage"``
+        (default), ``"DraftTweetGif"`` or ``"AmplifyVideo"``. ``remove_cover=True`` removes
+        the cover (not together with ``cover_media_id``). Pass at least one change.
+        """
+        return self._post(
+            A.article_update(
+                self._session(session),
+                article_id,
+                title=title,
+                text=text,
+                content_state=content_state,
+                cover_media_id=cover_media_id,
+                cover_media_category=cover_media_category,
+                remove_cover=remove_cover,
+            ),
+            response_format,
+        )
+
+    def publish(
+        self,
+        article_id: ID,
+        *,
+        visibility: Optional[ArticleVisibility] = None,
+        reply_control: Optional[ArticleReplyControl] = None,
+        tweet_text: Optional[str] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Publish a draft article as a post. Needs X Premium.
+
+        ``visibility`` is ``"public"`` (default) or ``"subscribers"``. ``reply_control``
+        (``"all"``, default, ``"community"``, ``"verified"`` or ``"byinvitation"``) is
+        ignored for subscriber-only articles. ``tweet_text`` (up to 256 characters) is the
+        text of the post that shares the article.
+        """
+        return self._post(
+            A.article_publish(
+                self._session(session), article_id, visibility, reply_control, tweet_text
+            ),
+            response_format,
+        )
+
+    def unpublish(
+        self,
+        article_id: ID,
+        *,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Turn a published article back into a draft. Needs X Premium."""
+        return self._post(
+            A.article_action("unpublish", self._session(session), article_id), response_format
+        )
+
+    def delete(
+        self,
+        article_id: ID,
+        *,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Delete an article. Needs X Premium."""
+        return self._post(
+            A.article_action("delete", self._session(session), article_id), response_format
+        )
 
 
 class AccountDM(SyncResource):
@@ -384,6 +552,7 @@ class Account(SyncResource):
     lists: AccountLists
     communities: AccountCommunities
     drafts: AccountDrafts
+    articles: AccountArticles
     dm: AccountDM
 
     def __init__(self, client: "TwittrAPI") -> None:
@@ -391,6 +560,7 @@ class Account(SyncResource):
         self.lists = AccountLists(client)
         self.communities = AccountCommunities(client)
         self.drafts = AccountDrafts(client)
+        self.articles = AccountArticles(client)
         self.dm = AccountDM(client)
 
     # Tweets
@@ -688,6 +858,48 @@ class Account(SyncResource):
     ) -> Any:
         """Tweets in your bookmarks. Paginated."""
         return self._post(A.bookmarks(self._session(session), count, cursor), response_format)
+
+    def bookmark_folders(
+        self,
+        *,
+        cursor: Optional[str] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Your bookmark folders and their IDs. Paginated.
+
+        Needs X Premium: without it X refuses with error code 37 ("Twitter Blue claim is not
+        enabled").
+        """
+        return self._post(A.bookmark_folders(self._session(session), cursor), response_format)
+
+    def bookmark_folder(
+        self,
+        folder_id: ID,
+        *,
+        cursor: Optional[str] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Tweets in one of your bookmark folders (``folder_id`` from
+        :meth:`bookmark_folders`). Paginated. Needs X Premium."""
+        return self._post(
+            A.bookmark_folder(self._session(session), folder_id, cursor), response_format
+        )
+
+    def search_bookmarks(
+        self,
+        query: str,
+        *,
+        count: Optional[int] = None,
+        cursor: Optional[str] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Search your bookmarks (``query`` up to 500 characters). Paginated."""
+        return self._post(
+            A.search_bookmarks(self._session(session), query, count, cursor), response_format
+        )
 
     def likes(
         self,
@@ -1029,6 +1241,18 @@ class AsyncAccountCommunities(AsyncResource):
             response_format,
         )
 
+    async def memberships(
+        self,
+        *,
+        cursor: Optional[str] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Communities your account belongs to. Paginated."""
+        return await self._post(
+            A.community_memberships(self._session(session), cursor), response_format
+        )
+
 
 class AsyncAccountDrafts(AsyncResource):
     """Async version of :class:`AccountDrafts`."""
@@ -1079,6 +1303,144 @@ class AsyncAccountDrafts(AsyncResource):
     ) -> Any:
         """Delete a draft."""
         return await self._post(A.draft_delete(self._session(session), draft_id), response_format)
+
+
+class AsyncAccountArticles(AsyncResource):
+    """Async version of :class:`AccountArticles`."""
+
+    async def list(
+        self,
+        *,
+        lifecycle: Optional[ArticleLifecycle] = None,
+        count: Optional[int] = None,
+        cursor: Optional[str] = None,
+        user_id: Optional[ID] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Your articles: ``lifecycle="draft"`` (default) or ``"published"``. Paginated.
+        Needs X Premium.
+
+        Reads the session's account (from ``twid`` in the cookie); pass your own numeric
+        ``user_id`` only if the cookie has no ``twid``.
+        """
+        return await self._post(
+            A.articles(self._session(session), lifecycle, count, cursor, user_id),
+            response_format,
+        )
+
+    async def get(
+        self,
+        article_id: ID,
+        *,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """One of your articles: title, ``content_state``, cover, state and metadata.
+        Needs X Premium."""
+        return await self._post(A.article_get(self._session(session), article_id), response_format)
+
+    async def create(
+        self,
+        *,
+        title: Optional[str] = None,
+        text: Optional[str] = None,
+        content_state: Optional[Mapping[str, Any]] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Create a draft article. Needs X Premium.
+
+        Everything is optional (without it the draft starts empty). Pass ``text`` or
+        ``content_state``, not both. The answer holds the new draft and its ID.
+        """
+        return await self._post(
+            A.article_create(self._session(session), title, text, content_state),
+            response_format,
+        )
+
+    async def update(
+        self,
+        article_id: ID,
+        *,
+        title: Optional[str] = None,
+        text: Optional[str] = None,
+        content_state: Optional[Mapping[str, Any]] = None,
+        cover_media_id: Optional[ID] = None,
+        cover_media_category: Optional[ArticleCoverCategory] = None,
+        remove_cover: bool = False,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Change an article's title, content or cover. Needs X Premium.
+
+        ``text`` or ``content_state`` (not both) replaces the whole content.
+        ``cover_media_id`` comes from :meth:`AsyncAccount.upload_image` or
+        :meth:`AsyncAccount.upload_video`; ``cover_media_category`` is ``"DraftTweetImage"``
+        (default), ``"DraftTweetGif"`` or ``"AmplifyVideo"``. ``remove_cover=True`` removes
+        the cover (not together with ``cover_media_id``). Pass at least one change.
+        """
+        return await self._post(
+            A.article_update(
+                self._session(session),
+                article_id,
+                title=title,
+                text=text,
+                content_state=content_state,
+                cover_media_id=cover_media_id,
+                cover_media_category=cover_media_category,
+                remove_cover=remove_cover,
+            ),
+            response_format,
+        )
+
+    async def publish(
+        self,
+        article_id: ID,
+        *,
+        visibility: Optional[ArticleVisibility] = None,
+        reply_control: Optional[ArticleReplyControl] = None,
+        tweet_text: Optional[str] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Publish a draft article as a post. Needs X Premium.
+
+        ``visibility`` is ``"public"`` (default) or ``"subscribers"``. ``reply_control``
+        (``"all"``, default, ``"community"``, ``"verified"`` or ``"byinvitation"``) is
+        ignored for subscriber-only articles. ``tweet_text`` (up to 256 characters) is the
+        text of the post that shares the article.
+        """
+        return await self._post(
+            A.article_publish(
+                self._session(session), article_id, visibility, reply_control, tweet_text
+            ),
+            response_format,
+        )
+
+    async def unpublish(
+        self,
+        article_id: ID,
+        *,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Turn a published article back into a draft. Needs X Premium."""
+        return await self._post(
+            A.article_action("unpublish", self._session(session), article_id), response_format
+        )
+
+    async def delete(
+        self,
+        article_id: ID,
+        *,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Delete an article. Needs X Premium."""
+        return await self._post(
+            A.article_action("delete", self._session(session), article_id), response_format
+        )
 
 
 class AsyncAccountDM(AsyncResource):
@@ -1212,6 +1574,7 @@ class AsyncAccount(AsyncResource):
     lists: AsyncAccountLists
     communities: AsyncAccountCommunities
     drafts: AsyncAccountDrafts
+    articles: AsyncAccountArticles
     dm: AsyncAccountDM
 
     def __init__(self, client: "AsyncTwittrAPI") -> None:
@@ -1219,6 +1582,7 @@ class AsyncAccount(AsyncResource):
         self.lists = AsyncAccountLists(client)
         self.communities = AsyncAccountCommunities(client)
         self.drafts = AsyncAccountDrafts(client)
+        self.articles = AsyncAccountArticles(client)
         self.dm = AsyncAccountDM(client)
 
     # Tweets
@@ -1516,6 +1880,48 @@ class AsyncAccount(AsyncResource):
     ) -> Any:
         """Tweets in your bookmarks. Paginated."""
         return await self._post(A.bookmarks(self._session(session), count, cursor), response_format)
+
+    async def bookmark_folders(
+        self,
+        *,
+        cursor: Optional[str] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Your bookmark folders and their IDs. Paginated.
+
+        Needs X Premium: without it X refuses with error code 37 ("Twitter Blue claim is not
+        enabled").
+        """
+        return await self._post(A.bookmark_folders(self._session(session), cursor), response_format)
+
+    async def bookmark_folder(
+        self,
+        folder_id: ID,
+        *,
+        cursor: Optional[str] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Tweets in one of your bookmark folders (``folder_id`` from
+        :meth:`bookmark_folders`). Paginated. Needs X Premium."""
+        return await self._post(
+            A.bookmark_folder(self._session(session), folder_id, cursor), response_format
+        )
+
+    async def search_bookmarks(
+        self,
+        query: str,
+        *,
+        count: Optional[int] = None,
+        cursor: Optional[str] = None,
+        session: Optional[XSession] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Search your bookmarks (``query`` up to 500 characters). Paginated."""
+        return await self._post(
+            A.search_bookmarks(self._session(session), query, count, cursor), response_format
+        )
 
     async def likes(
         self,

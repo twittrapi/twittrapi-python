@@ -1,10 +1,12 @@
 from .account import (
     Account,
     AccountCommunities,
+    AccountArticles,
     AccountDM,
     AccountDrafts,
     AccountLists,
     AsyncAccount,
+    AsyncAccountArticles,
     AsyncAccountCommunities,
     AsyncAccountDM,
     AsyncAccountDrafts,
@@ -13,6 +15,7 @@ from .account import (
 from .communities import AsyncCommunities, Communities
 from .lists import AsyncLists, Lists
 from .search import AsyncSearch, Search
+from .spaces import AsyncSpaces, Spaces
 from .trends import AsyncTrends, Trends
 from .tweets import AsyncTweets, Tweets
 from .users import AsyncUsers, Users
@@ -28,6 +31,8 @@ __all__ = [
     "AsyncLists",
     "Communities",
     "AsyncCommunities",
+    "Spaces",
+    "AsyncSpaces",
     "Trends",
     "AsyncTrends",
     "Account",
@@ -40,4 +45,6 @@ __all__ = [
     "AsyncAccountDrafts",
     "AccountDM",
     "AsyncAccountDM",
+    "AccountArticles",
+    "AsyncAccountArticles",
 ]

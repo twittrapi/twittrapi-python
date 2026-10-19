@@ -131,6 +131,54 @@ class Users(SyncResource):
         request = E.user_timeline("verified_followers", user_id, username, count, cursor)
         return self._get(request, response_format)
 
+    def affiliates(
+        self,
+        user_id: Optional[ID] = None,
+        *,
+        username: Optional[str] = None,
+        count: Optional[int] = None,
+        cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Accounts affiliated with an organization (the affiliates shown on its profile).
+        Paginated. In the simple format a list of users, like :meth:`followers`."""
+        request = E.user_timeline("affiliates", user_id, username, count, cursor)
+        return self._get(request, response_format)
+
+    def friendships_batch(
+        self,
+        source: str,
+        targets: Iterable[str],
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """How the account ``source`` relates to up to 50 others (following, followed by,
+        blocking, muting, ...), in one request.
+
+        ``targets`` is a list of handles (``@`` optional); duplicates are dropped
+        (case-insensitive). Billed one call per distinct target. Answers
+        ``{"source_screen_name", "relationships": [{"target_screen_name", "relationship"}],
+        "errors"}`` in input order; ``errors`` lists the handles that failed and is left out
+        when none did. Raw format only.
+        """
+        return self._get(E.friendships_batch(source, targets), response_format)
+
+    def about_batch(
+        self,
+        usernames: Iterable[str],
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """The "About this account" details (where the account is based, username changes,
+        ...) for up to 20 handles, in one request.
+
+        ``@`` is optional and duplicates are dropped (case-insensitive). Billed one call per
+        distinct handle. Answers ``{"users": [{"username", "about"}], "errors"}``; ``errors``
+        lists the handles that were not found or failed and is left out when none did. Raw
+        format only.
+        """
+        return self._get(E.about_batch(usernames), response_format)
+
 
 class AsyncUsers(AsyncResource):
     """Async version of :class:`Users`."""
@@ -248,3 +296,51 @@ class AsyncUsers(AsyncResource):
         """A user's followers that have a verified badge. Paginated."""
         request = E.user_timeline("verified_followers", user_id, username, count, cursor)
         return await self._get(request, response_format)
+
+    async def affiliates(
+        self,
+        user_id: Optional[ID] = None,
+        *,
+        username: Optional[str] = None,
+        count: Optional[int] = None,
+        cursor: Optional[str] = None,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Accounts affiliated with an organization (the affiliates shown on its profile).
+        Paginated. In the simple format a list of users, like :meth:`followers`."""
+        request = E.user_timeline("affiliates", user_id, username, count, cursor)
+        return await self._get(request, response_format)
+
+    async def friendships_batch(
+        self,
+        source: str,
+        targets: Iterable[str],
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """How the account ``source`` relates to up to 50 others (following, followed by,
+        blocking, muting, ...), in one request.
+
+        ``targets`` is a list of handles (``@`` optional); duplicates are dropped
+        (case-insensitive). Billed one call per distinct target. Answers
+        ``{"source_screen_name", "relationships": [{"target_screen_name", "relationship"}],
+        "errors"}`` in input order; ``errors`` lists the handles that failed and is left out
+        when none did. Raw format only.
+        """
+        return await self._get(E.friendships_batch(source, targets), response_format)
+
+    async def about_batch(
+        self,
+        usernames: Iterable[str],
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """The "About this account" details (where the account is based, username changes,
+        ...) for up to 20 handles, in one request.
+
+        ``@`` is optional and duplicates are dropped (case-insensitive). Billed one call per
+        distinct handle. Answers ``{"users": [{"username", "about"}], "errors"}``; ``errors``
+        lists the handles that were not found or failed and is left out when none did. Raw
+        format only.
+        """
+        return await self._get(E.about_batch(usernames), response_format)
