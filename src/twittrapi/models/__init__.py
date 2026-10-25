@@ -345,7 +345,8 @@ class Page(Generic[T]):
 
 def tweets_page(body: Mapping[str, Any]) -> Page[Union[Tweet, UnavailableTweet]]:
     """Parses a simple-format tweet list (timelines, search, quotes, list and community
-    tweets, a tweet with its replies, ``tweets.replies``, ``tweets.thread``)."""
+    tweets, a tweet with its replies, ``tweets.replies``, ``tweets.thread``,
+    ``tweets.get_many``)."""
     return Page.from_dict(body, parse_tweet)
 
 

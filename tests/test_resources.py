@@ -73,6 +73,7 @@ CASES = [
         f"/tweet/{TID}",
         {"rankingMode": "Recency", "cursor": "x"},
     ),
+    (lambda c: c.tweets.get_many([TID, 20, " 21 "]), "/tweet/tweets/by/ids", {"ids": f"{TID},20,21"}),
     (lambda c: c.tweets.replies(TID), f"/tweet/{TID}/replies", {}),
     (
         lambda c: c.tweets.replies(int(TID), ranking_mode="Likes", include_promoted_content=True, cursor="r"),
@@ -210,7 +211,9 @@ def test_expected_method_names() -> None:
         "tweets_and_replies", "media", "followers", "following", "verified_followers",
         "affiliates", "friendships_batch", "about_batch",
     }
-    assert set(_public_methods(c.tweets)) == {"get", "replies", "thread", "retweeters", "likers", "quotes"}
+    assert set(_public_methods(c.tweets)) == {
+        "get", "get_many", "replies", "thread", "retweeters", "likers", "quotes",
+    }
     assert set(_public_methods(c.search)) == {"tweets"}
     assert set(_public_methods(c.lists)) == {"details", "tweets", "members"}
     assert set(_public_methods(c.communities)) == {"get", "about", "tweets", "search"}
@@ -228,6 +231,11 @@ def test_expected_method_names() -> None:
         (lambda c: c.users.get_many([]), ValueError),
         (lambda c: c.users.get_many([str(i) for i in range(501)]), ValueError),
         (lambda c: c.users.get_many("123"), TypeError),
+        (lambda c: c.tweets.get_many([]), ValueError),
+        (lambda c: c.tweets.get_many([str(i) for i in range(101)]), ValueError),
+        (lambda c: c.tweets.get_many("123"), TypeError),
+        (lambda c: c.tweets.get_many([TID, "12a"]), ValueError),
+        (lambda c: c.tweets.get_many([True]), TypeError),
         (lambda c: c.tweets.get("12a"), ValueError),
         (lambda c: c.tweets.get(True), TypeError),
         (lambda c: c.tweets.get(TID, ranking_mode="Newest"), ValueError),
@@ -282,6 +290,11 @@ def test_client_side_validation(api: MockAPI, call: Callable[[Any], Any], exc: t
 def test_get_many_accepts_exactly_500(api: MockAPI) -> None:
     api.client().users.get_many(range(1, 501))
     assert len(api.last.url.params["ids"].split(",")) == 500
+
+
+def test_tweets_get_many_accepts_exactly_100(api: MockAPI) -> None:
+    api.client().tweets.get_many(range(1, 101))
+    assert len(api.last.url.params["ids"].split(",")) == 100
 
 
 def test_batch_limits_count_distinct_handles(api: MockAPI) -> None:

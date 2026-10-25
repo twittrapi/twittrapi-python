@@ -26,6 +26,7 @@ _SPACE_ID = re.compile(r"^[A-Za-z0-9]{1,32}$")
 _HANDLE = re.compile(r"^[A-Za-z0-9_]{1,15}$")
 
 MAX_USERS_PER_LOOKUP = 500
+MAX_TWEETS_PER_LOOKUP = 100
 MAX_FRIENDSHIP_TARGETS = 50
 MAX_ABOUT_USERNAMES = 20
 # X treats count as a hint (pages can be larger or smaller); TwittrAPI accepts 1..100.
@@ -245,6 +246,19 @@ def tweet(tweet_id: ID, ranking_mode: Optional[str], cursor: Optional[str]) -> E
     if cursor:
         params["cursor"] = cursor
     return EndpointRequest(f"/tweet/{_numeric_id(tweet_id, 'tweet_id')}", params)
+
+
+def tweets_by_ids(tweet_ids: Iterable[ID]) -> EndpointRequest:
+    if isinstance(tweet_ids, (str, bytes)):
+        raise TypeError("tweet_ids must be a list of IDs, not a single string")
+    ids = [_numeric_id(t, "each tweet id") for t in tweet_ids]
+    if not ids:
+        raise ValueError("tweet_ids must contain at least one ID")
+    if len(ids) > MAX_TWEETS_PER_LOOKUP:
+        raise ValueError(
+            f"tweet_ids accepts at most {MAX_TWEETS_PER_LOOKUP} IDs per call, got {len(ids)}"
+        )
+    return EndpointRequest("/tweet/tweets/by/ids", {"ids": ",".join(ids)})
 
 
 def _conversation(

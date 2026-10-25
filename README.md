@@ -137,6 +137,7 @@ handle up first.
 ```python
 client.tweets.get("1585841080431321088")                         # tweet plus reply thread
 client.tweets.get("1585841080431321088", ranking_mode="Recency")  # Relevance, Recency or Likes
+client.tweets.get_many(["1585841080431321088", "20"])             # up to 100 IDs, one call
 client.tweets.replies("1585841080431321088", ranking_mode="Likes")  # only the replies, paginated
 client.tweets.thread("1585841080431321088")                         # the author's thread, one call
 client.tweets.retweeters("1585841080431321088")

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from .. import _endpoints as E
 from .._base import ResponseFormat
@@ -27,6 +27,20 @@ class Tweets(SyncResource):
         Pass ``cursor`` to load more replies.
         """
         return self._get(E.tweet(tweet_id, ranking_mode, cursor), response_format)
+
+    def get_many(
+        self,
+        tweet_ids: Iterable[ID],
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Up to 100 tweets by numeric ID, in one call (billed as one call).
+
+        Raw format: one entry per ID in request order, ``{}`` for an ID without a tweet
+        (deleted or never existed). Simple format: a list of the tweets found, in request
+        order; IDs without a tweet are left out.
+        """
+        return self._get(E.tweets_by_ids(tweet_ids), response_format)
 
     def replies(
         self,
@@ -126,6 +140,20 @@ class AsyncTweets(AsyncResource):
         Pass ``cursor`` to load more replies.
         """
         return await self._get(E.tweet(tweet_id, ranking_mode, cursor), response_format)
+
+    async def get_many(
+        self,
+        tweet_ids: Iterable[ID],
+        *,
+        response_format: Optional[ResponseFormat] = None,
+    ) -> Any:
+        """Up to 100 tweets by numeric ID, in one call (billed as one call).
+
+        Raw format: one entry per ID in request order, ``{}`` for an ID without a tweet
+        (deleted or never existed). Simple format: a list of the tweets found, in request
+        order; IDs without a tweet are left out.
+        """
+        return await self._get(E.tweets_by_ids(tweet_ids), response_format)
 
     async def replies(
         self,

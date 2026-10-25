@@ -134,7 +134,7 @@ def test_every_method_accepts_response_format(client_cls: Any) -> None:
             assert param.kind is inspect.Parameter.KEYWORD_ONLY
             assert param.default is None
             checked += 1
-    assert checked == 30
+    assert checked == 31
 
 
 # --- models ----------------------------------------------------------------------
@@ -237,6 +237,39 @@ def test_affiliates_replies_and_thread_parse_as_collections(api: MockAPI) -> Non
     thread = tweets_page(client.tweets.thread(TID))
     assert isinstance(thread.data[0], Tweet)
     assert [dict(r.url.params)["format"] for r in api.requests] == ["simple"] * 3
+
+
+def test_tweets_get_many_raw_and_simple(api: MockAPI) -> None:
+    missing = "1"
+    raw_body = {
+        "data": {
+            "tweetResult": [
+                {"result": {"__typename": "Tweet", "rest_id": TID}},
+                {},
+            ]
+        }
+    }
+    found = simple("simpletweet-tweetid")["data"]
+    simple_body = {
+        "data": [found, {"id": "2", "unavailable": True}],
+        "nextCursor": None,
+        "hasNextPage": False,
+    }
+    api.replies = [json_response(raw_body), json_response(simple_body)]
+    client = api.client()
+
+    raw = client.tweets.get_many([TID, missing])
+    assert query(api, 0) == {"ids": f"{TID},{missing}"}
+    entries = raw["data"]["tweetResult"]
+    assert len(entries) == 2 and entries[1] == {}
+    assert entries[0]["result"]["rest_id"] == TID
+
+    page = tweets_page(client.tweets.get_many([found["id"], missing, "2"], response_format="simple"))
+    assert query(api, 1) == {"ids": f"{found['id']},{missing},2", "format": "simple"}
+    assert [t.id for t in page.data] == [found["id"], "2"]
+    assert isinstance(page.data[0], Tweet)
+    assert page.data[1] == UnavailableTweet(id="2")
+    assert page.next_cursor is None and page.has_next_page is False
 
 
 def test_paginate_replies_simple() -> None:
